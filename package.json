@@ -1,0 +1,21 @@
+{
+  "name": "ku-grade-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "เว็บจัดการข้อมูลการเรียน KU",
+  "scripts": {
+    "dev": "concurrently \"node server.js --api\" \"vite --host 0.0.0.0\"",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "vite": "latest"
+  }
+}

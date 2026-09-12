@@ -1,0 +1,66 @@
+:root {
+  font-family: "Noto Sans Thai", "Segoe UI", sans-serif;
+  color: #153b2d;
+  background: #f4f8f5;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+a { color: inherit; text-decoration: none; }
+button, input { font: inherit; }
+
+.app-shell { min-height: 100vh; background: radial-gradient(circle at 4% 8%, #dcefe4 0, transparent 30rem), #f7faf8; }
+header { width: min(1120px, calc(100% - 48px)); margin: 0 auto; min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 28px; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; font-weight: 750; }
+.brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; color: #fff; background: #006b45; font-size: .8rem; letter-spacing: -.04em; }
+nav { display: flex; gap: 22px; font-size: .9rem; color: #527265; }
+nav a:hover, nav a.active { color: #006b45; font-weight: 700; }
+.logout { border: 0; padding: 0; background: none; color: #527265; cursor: pointer; font-size: .9rem; }
+.logout:hover { color: #006b45; font-weight: 700; }
+main { width: min(920px, calc(100% - 48px)); margin: 0 auto; }
+.login-layout { min-height: 100vh; display: grid; grid-template-columns: 1.05fr .95fr; align-items: center; gap: clamp(48px, 10vw, 140px); }
+.login-copy h1 { max-width: 600px; }
+.login-copy > p:not(.eyebrow) { max-width: 420px; color: #5a7168; font-size: 1.06rem; line-height: 1.7; }
+.login-card { padding: 42px; border: 1px solid #dce9e1; border-radius: 22px; background: #fff; box-shadow: 0 18px 50px #1e4c3720; }
+.login-mark { display: grid; place-items: center; width: 46px; height: 46px; margin-bottom: 24px; border-radius: 14px; background: #006b45; color: #fff; font-size: .88rem; font-weight: 800; }
+.login-card h2 { margin: 0; font-size: 1.7rem; }
+.login-subtitle { margin: 7px 0 28px; color: #668077; font-size: .94rem; }
+.login-card label { display: block; margin: 18px 0 8px; color: #315b49; font-size: .9rem; font-weight: 700; }
+.login-card input { width: 100%; padding: 13px 14px; border: 1px solid #bfd7c9; border-radius: 10px; outline: 0; }
+.login-card input:focus { border-color: #08734e; box-shadow: 0 0 0 3px #d7eee0; }
+.login-card button[type="submit"] { width: 100%; margin-top: 26px; padding: 14px; border: 0; border-radius: 10px; background: #006b45; color: #fff; cursor: pointer; font-weight: 800; }
+.login-card button[disabled] { cursor: wait; opacity: .7; }
+.login-error { margin: 16px 0 0; padding: 10px 12px; border-radius: 9px; background: #fff0f0; color: #b22323; font-size: .9rem; }
+.home { padding: 96px 0 80px; }
+.eyebrow { margin: 0 0 12px; color: #08734e; font-size: .78rem; font-weight: 800; letter-spacing: .12em; }
+h1 { margin: 0; font-size: clamp(2.2rem, 6vw, 4.25rem); line-height: 1.12; letter-spacing: -.045em; }
+.intro { margin: 20px 0 42px; color: #5a7168; font-size: 1.08rem; }
+.cards { display: grid; gap: 14px; }
+.card { display: flex; align-items: center; gap: 20px; padding: 24px 28px; border: 1px solid #dce9e1; border-radius: 18px; background: #fff; box-shadow: 0 4px 18px #1e4c3710; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.card:hover { transform: translateY(-3px); border-color: #79b59a; box-shadow: 0 10px 28px #1e4c3720; }
+.card-icon { display: grid; place-items: center; flex: 0 0 46px; height: 46px; border-radius: 14px; background: #e3f2e9; color: #006b45; font-size: 1.45rem; }
+.card-content { display: grid; gap: 4px; }
+.card-title { font-size: 1.18rem; font-weight: 750; }
+.card-description { color: #668077; font-size: .94rem; }
+.arrow { margin-left: auto; color: #08734e; font-size: 1.4rem; }
+.placeholder { padding: 140px 0; max-width: 620px; }
+.placeholder h1 { font-size: clamp(2.2rem, 5vw, 3.5rem); }
+.placeholder > p:not(.eyebrow) { color: #5a7168; font-size: 1.05rem; }
+.back { display: inline-block; margin-top: 24px; padding: 12px 18px; border-radius: 10px; background: #006b45; color: #fff; font-weight: 700; }
+.grades-page { padding: 72px 0; }
+.grades-page h1 { font-size: clamp(2.2rem, 5vw, 3.5rem); }
+.grades-caption { margin: 12px 0 32px; color: #668077; }
+.status-card, .semester-card { border: 1px solid #dce9e1; border-radius: 16px; background: #fff; box-shadow: 0 4px 18px #1e4c3710; }
+.status-card { padding: 24px; color: #527265; }
+.error-card { border-color: #ffc9c9; background: #fff5f5; color: #b22323; }
+.semester-card { margin-top: 18px; overflow: hidden; }
+.semester-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #e5eee9; }
+.semester-heading h2 { margin: 0; font-size: 1.13rem; }
+.semester-heading span { color: #527265; font-size: .9rem; }
+.grade-table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+th, td { padding: 15px 24px; border-bottom: 1px solid #edf3ef; font-size: .93rem; }
+th { color: #527265; background: #fbfdfc; font-size: .78rem; letter-spacing: .04em; }
+tbody tr:last-child td { border-bottom: 0; }
+.grade-badge { display: inline-grid; place-items: center; min-width: 36px; padding: 4px 8px; border-radius: 8px; background: #e3f2e9; color: #006b45; font-weight: 800; }
+@media (max-width: 720px) { header { width: min(100% - 32px, 1120px); padding: 14px 0; align-items: flex-start; flex-direction: column; gap: 12px; } nav { width: 100%; gap: 12px; overflow-x: auto; white-space: nowrap; } main { width: min(100% - 32px, 920px); } .login-layout { grid-template-columns: 1fr; padding: 54px 0; gap: 36px; } .login-card { padding: 28px; } .home { padding-top: 58px; } .card { padding: 20px; } .card-description { line-height: 1.45; } .grades-page { padding: 54px 0; } th, td { padding: 13px 16px; } }
