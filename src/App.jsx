@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
+import StudyPlanner from "./StudyPlanner";
 
 const sections = [
   {
@@ -68,12 +69,15 @@ function Login({ onLogin }) {
         throw new Error(data.error || data.message || "เข้าสู่ระบบไม่สำเร็จ");
       }
 
+      const student = data.student || data.user?.student || data.user || data;
       const session = {
         username,
         idcode:
           data.idcode ||
-          data.user?.idcode ||
-          data.user?.student?.idcode ||
+          student.idcode ||
+          student.idCode ||
+          student.stdId ||
+          student.stdCode ||
           username.replace(/^[bB](?=\d)/, ""),
         token: data.accesstoken,
       };
@@ -91,7 +95,7 @@ function Login({ onLogin }) {
     <section className="login-layout">
       <div className="login-copy">
         <p className="eyebrow">KU STUDENT PLANNER</p>
-        <h1>เทสๆ<br />ครับเจต</h1>
+        <h1>วางเส้นทางการเรียน<br />ในแบบของคุณ</h1>
         <p>เข้าสู่ระบบด้วยบัญชีนนทรี เพื่อจัดการข้อมูลการเรียนของคุณ</p>
       </div>
       <form className="login-card" onSubmit={handleSubmit}>
@@ -304,7 +308,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login onLogin={setSession} />} />
           <Route path="/dashboard" element={<Protected session={session}><Home /></Protected>} />
-          <Route path="/study-plan" element={<Protected session={session}><Placeholder title="จัดการแผนการเรียน" description="หน้านี้พร้อมสำหรับเพิ่มรายวิชาและสร้างแผนการเรียน" /></Protected>} />
+          <Route path="/study-plan" element={<Protected session={session}><StudyPlanner session={session} /></Protected>} />
           <Route path="/grades" element={<Protected session={session}><Grades session={session} /></Protected>} />
           <Route path="/cooperative-plan" element={<Protected session={session}><Placeholder title="จัดแผนสหกิจ" description="หน้านี้พร้อมสำหรับวางแผนสหกิจศึกษา" /></Protected>} />
           <Route path="*" element={<Placeholder title="ไม่พบหน้านี้" description="ลิงก์ที่เปิดไม่มีอยู่ในระบบ" />} />
