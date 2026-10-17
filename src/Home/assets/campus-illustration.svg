@@ -1,0 +1,169 @@
+<svg viewBox="0 0 760 380" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Left fade gradient mask so the illustration smoothly blends into the green banner -->
+    <linearGradient id="edgeFade" x1="0%" y1="0%" x2="40%" y2="0%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0" />
+      <stop offset="60%" stop-color="#fff" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#fff" stop-opacity="1" />
+    </linearGradient>
+    <mask id="illustrationMask">
+      <rect width="760" height="380" fill="url(#edgeFade)" />
+    </mask>
+
+    <!-- Sky Gradient -->
+    <linearGradient id="skyGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#cae8fa" />
+      <stop offset="65%" stop-color="#eaf5f9" />
+      <stop offset="100%" stop-color="#d4edd8" />
+    </linearGradient>
+
+    <!-- Mountain Gradients -->
+    <linearGradient id="mountainFar" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#73a992" />
+      <stop offset="100%" stop-color="#99cbb4" />
+    </linearGradient>
+    <linearGradient id="mountainMid" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5a967c" />
+      <stop offset="100%" stop-color="#7eb89e" />
+    </linearGradient>
+
+    <!-- Building Gradients -->
+    <linearGradient id="buildingWall" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#eef6f3" />
+      <stop offset="100%" stop-color="#ffffff" />
+    </linearGradient>
+    <linearGradient id="buildingRoof" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2a775b" />
+      <stop offset="100%" stop-color="#19553f" />
+    </linearGradient>
+    <linearGradient id="windowGlass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#97d3eb" />
+      <stop offset="100%" stop-color="#55a5c7" />
+    </linearGradient>
+
+    <!-- Trees & Grass -->
+    <linearGradient id="lawnGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#9cd49e" />
+      <stop offset="100%" stop-color="#76bc7a" />
+    </linearGradient>
+    <linearGradient id="treeGreen1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6bb576" />
+      <stop offset="100%" stop-color="#347842" />
+    </linearGradient>
+    <linearGradient id="treeGreen2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8fd298" />
+      <stop offset="100%" stop-color="#4e995c" />
+    </linearGradient>
+  </defs>
+
+  <g mask="url(#illustrationMask)">
+    <!-- Sky background -->
+    <rect width="760" height="380" fill="url(#skyGrad)" />
+
+    <!-- Clouds -->
+    <path d="M180 80 Q210 50 250 70 Q280 40 330 65 Q370 55 390 85 Q405 105 380 120 Q320 130 240 125 Q180 120 180 80 Z" fill="#ffffff" opacity="0.65" />
+    <path d="M480 60 Q520 30 570 50 Q610 35 650 65 Q680 75 670 100 Q620 115 540 110 Q470 100 480 60 Z" fill="#ffffff" opacity="0.55" />
+
+    <!-- Distant Mountains -->
+    <path d="M120 230 Q220 110 360 160 Q480 90 600 150 Q680 120 760 180 L760 380 L120 380 Z" fill="url(#mountainFar)" opacity="0.6" />
+    <path d="M220 220 Q340 140 460 180 Q560 130 680 170 Q730 155 760 185 L760 380 L220 380 Z" fill="url(#mountainMid)" opacity="0.75" />
+
+    <!-- Campus Main Lawn Base -->
+    <path d="M100 310 Q320 270 540 290 Q650 280 760 295 L760 380 L100 380 Z" fill="url(#lawnGrad)" />
+
+    <!-- Midground Trees & Shrubs Behind Building -->
+    <ellipse cx="380" cy="270" rx="45" ry="35" fill="url(#treeGreen1)" />
+    <ellipse cx="430" cy="265" rx="50" ry="40" fill="url(#treeGreen2)" />
+    <ellipse cx="480" cy="270" rx="42" ry="32" fill="url(#treeGreen1)" />
+    <ellipse cx="700" cy="260" rx="60" ry="50" fill="url(#treeGreen2)" />
+    <ellipse cx="735" cy="250" rx="40" ry="35" fill="url(#treeGreen1)" />
+
+    <!-- ================= KU CAMPUS BUILDING ================= -->
+    <g transform="translate(420, 130)">
+      <!-- Building Shadow -->
+      <polygon points="10,210 310,210 290,225 -10,225" fill="#4d8560" opacity="0.3" />
+
+      <!-- Left Wing -->
+      <polygon points="20,110 160,95 160,205 20,205" fill="#e2ede8" />
+      <polygon points="20,105 160,90 160,95 20,110" fill="url(#buildingRoof)" />
+
+      <!-- Left Wing Windows Grid -->
+      <g fill="url(#windowGlass)" stroke="#cfdfd8" stroke-width="1.5">
+        <!-- Row 1 -->
+        <rect x="35" y="115" width="22" height="18" rx="2" />
+        <rect x="65" y="113" width="22" height="18" rx="2" />
+        <rect x="95" y="110" width="22" height="18" rx="2" />
+        <rect x="125" y="108" width="22" height="18" rx="2" />
+        <!-- Row 2 -->
+        <rect x="35" y="142" width="22" height="18" rx="2" />
+        <rect x="65" y="140" width="22" height="18" rx="2" />
+        <rect x="95" y="138" width="22" height="18" rx="2" />
+        <rect x="125" y="136" width="22" height="18" rx="2" />
+        <!-- Row 3 -->
+        <rect x="35" y="170" width="22" height="20" rx="2" />
+        <rect x="65" y="168" width="22" height="20" rx="2" />
+        <rect x="95" y="166" width="22" height="20" rx="2" />
+        <rect x="125" y="164" width="22" height="20" rx="2" />
+      </g>
+
+      <!-- Center Tower / Main Building Body -->
+      <polygon points="160,60 270,40 270,210 160,210" fill="url(#buildingWall)" filter="drop-shadow(-4px 0 8px rgba(0,0,0,0.08))" />
+      <polygon points="156,58 274,38 274,44 156,64" fill="url(#buildingRoof)" />
+
+      <!-- Green Decorative Top Band -->
+      <polygon points="160,68 270,48 270,62 160,82" fill="#006b45" />
+
+      <!-- KU Logo Block on Main Tower -->
+      <g transform="translate(192, 70)">
+        <rect x="0" y="0" width="60" height="70" rx="6" fill="#ffffff" filter="drop-shadow(0 3px 6px rgba(0,0,0,0.12))" />
+        <!-- KU Emblem Leaf Logo -->
+        <circle cx="30" cy="28" r="16" fill="#e8f5ee" />
+        <path d="M24 33 C22 25 30 18 36 21 C36 27 30 35 24 33 Z" fill="#006b45" />
+        <path d="M30 31 C32 26 38 22 41 24 C40 28 35 33 30 31 Z" fill="#15803d" />
+        <text x="30" y="52" font-family="'Plus Jakarta Sans', sans-serif" font-size="14" font-weight="800" fill="#006b45" text-anchor="middle">KU</text>
+        <text x="30" y="63" font-family="'Prompt', sans-serif" font-size="8" font-weight="600" fill="#2d5e46" text-anchor="middle">ศรีราชา</text>
+      </g>
+
+      <!-- Tower Windows -->
+      <g fill="url(#windowGlass)" stroke="#cfdfd8" stroke-width="1.5">
+        <rect x="175" y="152" width="24" height="20" rx="2" />
+        <rect x="232" y="146" width="24" height="20" rx="2" />
+        <!-- Main Entrance Doors -->
+        <rect x="195" y="180" width="40" height="28" rx="3" fill="#29634e" stroke="#1d4838" stroke-width="2" />
+        <rect x="199" y="184" width="14" height="22" rx="1" fill="#aee0f5" />
+        <rect x="217" y="184" width="14" height="22" rx="1" fill="#aee0f5" />
+      </g>
+
+      <!-- Columns / Pillars Structure -->
+      <line x1="160" y1="64" x2="160" y2="210" stroke="#b2cfc0" stroke-width="4" />
+      <line x1="270" y1="44" x2="270" y2="210" stroke="#b2cfc0" stroke-width="4" />
+    </g>
+
+    <!-- Foreground Trees, Flowers & Greenery -->
+    <g>
+      <!-- Big tree left of building -->
+      <ellipse cx="380" cy="290" rx="55" ry="45" fill="url(#treeGreen1)" />
+      <ellipse cx="360" cy="310" rx="45" ry="38" fill="url(#treeGreen2)" />
+      <ellipse cx="405" cy="315" rx="40" ry="32" fill="#58a865" />
+
+      <!-- Bushes in front of building -->
+      <ellipse cx="500" cy="330" rx="35" ry="25" fill="#449454" />
+      <ellipse cx="530" cy="335" rx="45" ry="28" fill="#67ba77" />
+      <ellipse cx="570" cy="338" rx="40" ry="26" fill="#4fa45f" />
+      <ellipse cx="615" cy="335" rx="35" ry="24" fill="#6bc07c" />
+
+      <!-- Big lush tree right foreground -->
+      <ellipse cx="690" cy="300" rx="70" ry="60" fill="url(#treeGreen1)" />
+      <ellipse cx="720" cy="285" rx="60" ry="50" fill="url(#treeGreen2)" />
+      <ellipse cx="660" cy="325" rx="50" ry="40" fill="#4a9c59" />
+
+      <!-- Flying leaves / petals in the breeze -->
+      <path d="M320 200 Q335 190 330 205 Q325 210 320 200 Z" fill="#60b572" opacity="0.8" />
+      <path d="M430 160 Q445 152 440 165 Q435 170 430 160 Z" fill="#75c887" opacity="0.75" />
+      <path d="M560 180 Q575 172 570 185 Q565 190 560 180 Z" fill="#52a764" opacity="0.8" />
+    </g>
+
+    <!-- Sun flare / glow effect -->
+    <circle cx="730" cy="40" r="100" fill="#ffffff" opacity="0.35" filter="blur(20px)" />
+  </g>
+</svg>
