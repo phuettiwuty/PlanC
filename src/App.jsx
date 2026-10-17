@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Home from "./Home/Home";
 import Login from "./Login/Login";
-import StudyPlanner from "./StudyPlanner";
+import StudyPlanner from "./Planner/StudyPlanner";
 
 const sections = [
   {
