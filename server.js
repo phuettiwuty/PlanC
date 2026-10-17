@@ -2,7 +2,7 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { kuLogin, kuGetGrades } from "./ku-login.mjs";
+import { kuLogin, kuGetGrades, kuGetProfile } from "./ku-login.mjs";
 
 /* ── Paths ─────────────────────────────────────────────────────── */
 
@@ -89,6 +89,29 @@ http
       } catch (err) {
         sendJSON(res, 502, {
           error: err.message || "ไม่สามารถดึงข้อมูลเกรดได้",
+        });
+      }
+      return;
+    }
+
+    /* ── API: Profile ──────────────────────────────────────────── */
+    if (url.pathname === "/api/profile" && req.method === "GET") {
+      try {
+        const idcode = url.searchParams.get("idcode");
+        const token = req.headers["x-access-token"];
+
+        if (!idcode || !token) {
+          sendJSON(res, 400, {
+            error: "Missing idcode query param or x-access-token header",
+          });
+          return;
+        }
+
+        const data = await kuGetProfile(token, idcode);
+        sendJSON(res, 200, data || {});
+      } catch (err) {
+        sendJSON(res, 502, {
+          error: err.message || "ไม่สามารถดึงข้อมูลโปรไฟล์ได้",
         });
       }
       return;

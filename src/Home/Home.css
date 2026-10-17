@@ -1,0 +1,801 @@
+/* PlanC Home Page Styles matching Figma Specifications */
+
+.home-page {
+  min-height: 100vh;
+  background: #F7F9FC;
+  font-family: "Geist", "Prompt", "Plus Jakarta Sans", "Noto Sans Thai", sans-serif;
+  color: #000000;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ================= TOPBAR (Rectangle 5 in Figma) ================= */
+.home-topbar {
+  width: 100%;
+  height: clamp(64px, 6.1vw, 89px);
+  background: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(16px, calc((100% - 1380px) / 2 + 24px), 64px);
+  position: relative;
+  z-index: 10;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.4vw, 20px);
+  min-width: 0;
+}
+
+/* Lucide / text-align-justify */
+.menu-toggle-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  width: clamp(34px, 3vw, 42px);
+  height: clamp(34px, 3vw, 42px);
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.menu-toggle-btn:hover {
+  background: rgba(8, 127, 106, 0.08);
+}
+
+.hamburger-line {
+  display: block;
+  width: 100%;
+  height: 3px;
+  background-color: #087F6A;
+  border-radius: 2px;
+}
+
+/* PlanC Logo + Graduation Cap */
+.home-brand {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 4px;
+  color: #087F6A;
+  font-family: "Geist", "Plus Jakarta Sans", sans-serif;
+  font-size: clamp(24px, 2.6vw, 38px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.brand-cap {
+  width: .74em;
+  height: .53em;
+  fill: #087F6A;
+  margin-top: -4px;
+}
+
+/* Topbar Right: User Profile (Lucide user-round + Text) */
+.topbar-right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.user-profile-dropdown {
+  position: relative;
+}
+
+.user-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(5px, .7vw, 10px);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 8px clamp(6px, 1vw, 14px);
+  border-radius: 999px;
+  cursor: pointer;
+  color: #090808;
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: clamp(13px, 1.3vw, 19px);
+  font-weight: 400;
+  line-height: 26px;
+  transition: all 0.15s ease;
+}
+
+.user-profile-btn:hover {
+  background: rgba(8, 127, 106, 0.08);
+}
+
+.user-avatar-icon {
+  width: 24px;
+  height: 24px;
+  stroke: #0E0E0E;
+  flex-shrink: 0;
+}
+
+.user-fullname {
+  white-space: nowrap;
+}
+
+.dropdown-caret {
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+}
+
+.user-menu-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 250px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  border: 1px solid #E2E8F0;
+  z-index: 50;
+  animation: popoverFadeIn 0.2s ease-out;
+}
+
+@keyframes popoverFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.user-menu-header {
+  padding: 4px 6px 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.user-menu-header strong {
+  font-size: 15px;
+  color: #090808;
+}
+
+.user-menu-header span {
+  font-size: 13px;
+  color: #64748B;
+  margin-top: 3px;
+}
+
+.user-menu-popover hr {
+  border: 0;
+  border-top: 1px solid #F1F5F9;
+  margin: 8px 0;
+}
+
+.user-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: #FF0404;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.user-menu-item:hover {
+  background: #FEF2F2;
+}
+
+/* ================= SIDEBAR (Home1 in Figma: Rectangle 6, width 310px) ================= */
+.nav-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(3px);
+  z-index: 100;
+  animation: backdropFadeIn 0.2s ease;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 310px;
+  background: #E5F6F1;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+  animation: drawerSlideIn 0.25s ease;
+  z-index: 101;
+}
+
+@keyframes drawerSlideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px 20px;
+}
+
+.drawer-brand {
+  font-size: 32px;
+  font-weight: 500;
+  color: #087F6A;
+  font-family: "Geist", "Plus Jakarta Sans", sans-serif;
+}
+
+.drawer-close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #087F6A;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.drawer-close-btn:hover {
+  background: rgba(8, 127, 106, 0.1);
+}
+
+.drawer-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* Figma Home1 Sidebar Nav Links */
+.drawer-nav a,
+.drawer-profile-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 20px;
+  border-radius: 16px;
+  color: #087F6A;
+  font-size: 19px;
+  font-weight: 400;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  font-family: "Geist", "Prompt", sans-serif;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.drawer-nav-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.drawer-nav a:hover,
+.drawer-nav a.active,
+.drawer-profile-link:hover {
+  background: #CDEFE5; /* Rectangle 26 in Figma */
+  color: #087F6A;
+  font-weight: 500;
+}
+
+.drawer-footer {
+  margin-top: auto;
+  padding: 16px 12px;
+}
+
+/* Figma Button Group Button - Nova (width 170px, height 53px, background #CDEFE5, color #FF0404) */
+.drawer-logout-btn {
+  width: 170px;
+  height: 53px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: none;
+  background: #CDEFE5;
+  color: #FF0404;
+  font-size: 19px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: "Geist", "Prompt", sans-serif;
+  transition: all 0.15s ease;
+}
+
+.drawer-logout-btn:hover {
+  background: #b8e8db;
+}
+
+/* ================= MAIN CONTAINER ================= */
+.home-container {
+  width: 100%;
+  max-width: 1380px;
+  margin: 0 auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 24px 20px;
+  box-sizing: border-box;
+}
+
+/* ================= 1. BANNER (Rectangle 16 in Figma) ================= */
+.welcome-banner {
+  background: rgba(205, 239, 229, 0.5); /* Rectangle 16 */
+  border-radius: 16px;
+  min-height: 267px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.banner-text-content {
+  padding: 40px 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* Welcome Back, (Abel font, 32px) */
+.banner-greeting-en {
+  font-size: 32px;
+  font-family: "Abel", sans-serif;
+  font-weight: 400;
+  color: #000000;
+  line-height: 41px;
+  margin-bottom: 6px;
+}
+
+/* สวัสดี คุณ... (Geist font, 40px, color #000000) */
+.banner-greeting-th {
+  margin: 0;
+  font-size: clamp(30px, 3.2vw, 42px);
+  font-family: "Geist", "Prompt", sans-serif;
+  font-weight: 500;
+  color: #000000;
+  line-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.wave-hand-emoji {
+  display: inline-block;
+  font-size: 1.05em;
+  transform-origin: 70% 70%;
+  animation: waveAnimation 2s infinite ease-in-out;
+}
+
+@keyframes waveAnimation {
+  0% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+  60% { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.banner-illustration-wrap {
+  height: 100%;
+  max-height: 267px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.banner-illustration-img {
+  height: 100%;
+  max-height: 267px;
+  width: auto;
+  object-fit: contain;
+  object-position: right center;
+  display: block;
+}
+
+/* ================= 2. 3 ACTION CARDS (Rectangle 7, 9, 8 in Figma) ================= */
+.action-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+
+.action-card {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 146px; /* Figma height: 146px */
+  padding: 24px 30px;
+  border-radius: 16px; /* Figma border-radius: 16px */
+  text-decoration: none;
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.action-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.action-icon-box {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.action-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.action-text {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Figma Title: font-size 29px, color #000000, font-family Geist */
+.action-title {
+  margin: 0;
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: clamp(22px, 2vw, 29px);
+  font-weight: 500;
+  color: #000000;
+  line-height: 38px;
+}
+
+/* Figma Subtitle: font-size 16px, color #808080 */
+.action-subtitle {
+  margin: 4px 0 0;
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: 15px;
+  font-weight: 400;
+  color: #808080;
+  line-height: 21px;
+}
+
+/* Card 1: วางแผนการเรียน (Rectangle 7: bg #D7F6E4, border 1px solid #087F6A) */
+.card-green {
+  background: #D7F6E4;
+  border: 1px solid #087F6A;
+}
+.card-green .action-icon-box {
+  color: #087F6A;
+}
+
+/* Card 2: เช็ควิชาและหน่วยกิต (Rectangle 9: bg #DDF3F6, border 1px solid #3B82F6) */
+.card-blue {
+  background: #DDF3F6;
+  border: 1px solid #3B82F6;
+}
+.card-blue .action-icon-box {
+  color: #3B82F6;
+}
+
+/* Card 3: คำนวณเกรดสหกิจ (Rectangle 8: bg #E5DFF2, border 1px solid #7C5CFC) */
+.card-purple {
+  background: #E5DFF2;
+  border: 1px solid #7C5CFC;
+}
+.card-purple .action-icon-box {
+  color: #7C5CFC;
+}
+
+/* ================= 3. BOTTOM SECTION (Rectangle 10 & 15 in Figma) ================= */
+.dashboard-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.95fr;
+  gap: 28px;
+}
+
+/* Panel Container (Rectangle 10 & 15: bg #FFFFFF, border 1px solid #000000, border-radius 16px) */
+.dashboard-panel {
+  background: #FFFFFF;
+  border: 1px solid #000000;
+  border-radius: 16px;
+  padding: 24px 28px;
+  box-sizing: border-box;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.panel-title-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.panel-title-icon.green-icon {
+  color: #087F6A;
+}
+
+/* Left Title: สรุปข้อมูลการเรียน (Figma: font-size 24px, color #087F6A) */
+.panel-title {
+  margin: 0;
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: #087F6A;
+  line-height: 31px;
+}
+
+/* Right Title: ประกาศ/แจ้งเตือน (Figma: font-size 20px, color #000000) */
+.panel-announcements .panel-title {
+  color: #000000;
+  font-size: 22px;
+}
+
+/* 2x2 Stats Grid */
+.stats-2x2-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.stat-card {
+  padding: 16px 20px;
+  border-radius: 16px; /* Figma border-radius: 16px */
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-sizing: border-box;
+  min-height: 98px; /* Figma height ~99px */
+}
+
+.stat-icon-wrap {
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-icon {
+  width: 38px;
+  height: 38px;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Figma Stat Label: font-size 16px, color #000000 */
+.stat-label {
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+  color: #000000;
+  line-height: 21px;
+}
+
+/* Figma Stat Value: font-size 24px, color #000000 */
+.stat-value {
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: #000000;
+  line-height: 31px;
+  margin-top: 2px;
+}
+
+/* Stat 1: หน่วยกิตสะสม (Rectangle 11: bg #D7F6E4) */
+.stat-green {
+  background: #D7F6E4;
+}
+.stat-green .stat-icon-wrap {
+  color: #087F6A;
+}
+
+/* Stat 2: หน่วยกิตที่เหลือ (Rectangle 12: bg #DDF3F6) */
+.stat-blue {
+  background: #DDF3F6;
+}
+.stat-blue .stat-icon-wrap {
+  color: #3B82F6;
+}
+
+/* Stat 3: เกรดเฉลี่ยสะสม (Rectangle 13: bg #E5DFF2) */
+.stat-purple {
+  background: #E5DFF2;
+}
+.stat-purple .stat-icon-wrap {
+  color: #7C5CFC;
+}
+
+/* Stat 4: สถานะการเรียน (Rectangle 14: bg #FFF5D1) */
+.stat-yellow {
+  background: #FFF5D1;
+}
+.stat-yellow .stat-icon-wrap {
+  color: #FFC115;
+}
+
+.dashboard-data-error {
+  padding: 16px 18px;
+  border: 1px solid #ffc9c9;
+  border-radius: 12px;
+  background: #fff5f5;
+  color: #b22323;
+  font-size: .9rem;
+  line-height: 1.5;
+}
+
+/* Right Panel: Notifications List */
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Figma Shadow Swatch notification pills: height 56px, border-radius 10px, font-size 20px */
+.notification-pill {
+  min-height: 56px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.1), 0px 1px 2px -1px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
+}
+
+.notification-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Figma notification text: font-size 20px, color #000000 */
+.notification-text {
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: 18px;
+  font-weight: 400;
+  color: #000000;
+  line-height: 26px;
+}
+
+/* Alert 1: border #F90303 */
+.alert-red {
+  border: 1px solid #F90303;
+}
+.alert-red .notification-dot {
+  background: #F90303;
+}
+
+/* Alert 2: border #FFC115 */
+.alert-yellow {
+  border: 1px solid #FFC115;
+}
+.alert-yellow .notification-dot {
+  background: #FFC115;
+}
+
+/* Alert 3: border #8CAEFD */
+.alert-blue {
+  border: 1px solid #8CAEFD;
+}
+.alert-blue .notification-dot {
+  background: #8CAEFD;
+}
+
+/* ================= FOOTER (Rectangle 38 in Figma: bg #D7F6E4, height 74px) ================= */
+.home-footer {
+  width: 100%;
+  height: 74px;
+  background: #D7F6E4; /* Rectangle 38 in Figma */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+/* แจ้งปัญหา: font-size 20px, color #000000, font-family Geist */
+.report-issue-btn {
+  background: none;
+  border: none;
+  color: #000000;
+  font-family: "Geist", "Prompt", sans-serif;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 26px;
+  cursor: pointer;
+  padding: 8px 18px;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.report-issue-btn:hover {
+  background: rgba(8, 127, 106, 0.12);
+  color: #087F6A;
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 1100px) {
+  .action-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .dashboard-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-banner {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .banner-illustration-wrap {
+    justify-content: center;
+    max-height: 200px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-topbar {
+    padding: 0 16px;
+    height: clamp(64px, 11.5vw, 74px);
+  }
+
+  .user-fullname {
+    display: none;
+  }
+
+  .banner-text-content {
+    padding: 24px 20px;
+  }
+
+  .banner-greeting-en {
+    font-size: 24px;
+  }
+
+  .banner-greeting-th {
+    font-size: 28px;
+  }
+
+  .stats-2x2-grid {
+    grid-template-columns: 1fr;
+  }
+}

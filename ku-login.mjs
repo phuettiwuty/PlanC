@@ -201,3 +201,30 @@ export async function kuGetGrades(accesstoken, idcode) {
       : String(data);
   throw new Error(message);
 }
+
+/**
+ * Fetch profile data for a student.
+ */
+export async function kuGetProfile(accesstoken, idcode) {
+  const candidates = [
+    `/myku/api/std-profile/getStdProfile?idcode=${encodeURIComponent(idcode)}`,
+    `/myku/api/std-profile/info?idcode=${encodeURIComponent(idcode)}`,
+    `/myku/api/std-profile/student-info`,
+  ];
+
+  for (const candidatePath of candidates) {
+    try {
+      const { status, data } = await get(candidatePath, {
+        "x-access-token": accesstoken,
+      });
+      if (status === 200 && data && typeof data === "object") {
+        return data;
+      }
+    } catch {
+      // Continue to next candidate
+    }
+  }
+
+  return null;
+}
+

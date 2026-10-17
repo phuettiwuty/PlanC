@@ -1,132 +1,23 @@
 import { useEffect, useState } from "react";
-import { Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import Home from "./Home/Home";
+import Login from "./Login/Login";
 import StudyPlanner from "./StudyPlanner";
 
 const sections = [
   {
     to: "/study-plan",
-    icon: "▤",
     title: "จัดการแผนการเรียน",
-    description: "วางรายวิชาและติดตามแผนการเรียนของคุณ",
   },
   {
     to: "/grades",
-    icon: "◆",
     title: "ดูผลการเรียน",
-    description: "ดูผลการเรียนและสรุปผลในแต่ละภาคการศึกษา",
   },
   {
     to: "/cooperative-plan",
-    icon: "↗",
     title: "จัดแผนสหกิจ",
-    description: "เตรียมแผนและขั้นตอนสำหรับสหกิจศึกษา",
   },
 ];
-
-function Home() {
-  return (
-    <section className="home">
-      <p className="eyebrow">KU STUDENT PLANNER</p>
-      <h1>วางเส้นทางการเรียน<br />ในแบบของคุณ</h1>
-      <p className="intro">เลือกสิ่งที่ต้องการจัดการเพื่อเริ่มต้นใช้งาน</p>
-      <div className="cards">
-        {sections.map((section) => (
-          <NavLink className="card" to={section.to} key={section.to}>
-            <span className="card-icon" aria-hidden="true">{section.icon}</span>
-            <span className="card-content">
-              <span className="card-title">{section.title}</span>
-              <span className="card-description">{section.description}</span>
-            </span>
-            <span className="arrow" aria-hidden="true">→</span>
-          </NavLink>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Login({ onLogin }) {
-  const navigate = useNavigate();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setError("");
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      const data = await response.json();
-
-      if (!response.ok || !data.accesstoken) {
-        throw new Error(data.error || data.message || "เข้าสู่ระบบไม่สำเร็จ");
-      }
-
-      const student = data.student || data.user?.student || data.user || data;
-      const session = {
-        username,
-        idcode:
-          data.idcode ||
-          student.idcode ||
-          student.idCode ||
-          student.stdId ||
-          student.stdCode ||
-          username.replace(/^[bB](?=\d)/, ""),
-        token: data.accesstoken,
-      };
-      sessionStorage.setItem("ku-session", JSON.stringify(session));
-      onLogin(session);
-      navigate("/dashboard", { replace: true });
-    } catch (loginError) {
-      setError(loginError.message || "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
-  return (
-    <section className="login-layout">
-      <div className="login-copy">
-        <p className="eyebrow">KU STUDENT PLANNER</p>
-        <h1>วางเส้นทางการเรียน<br />ในแบบของคุณ</h1>
-        <p>เข้าสู่ระบบด้วยบัญชีนนทรี เพื่อจัดการข้อมูลการเรียนของคุณ</p>
-      </div>
-      <form className="login-card" onSubmit={handleSubmit}>
-        <div className="login-mark">KU</div>
-        <h2>เข้าสู่ระบบ</h2>
-        <p className="login-subtitle">ใช้รหัสนิสิตหรือ Username ของ KU</p>
-        <label htmlFor="username">รหัสนิสิต / Username</label>
-        <input
-          id="username"
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-          autoComplete="username"
-          required
-        />
-        <label htmlFor="password">รหัสผ่าน</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="current-password"
-          required
-        />
-        {error && <p className="login-error" role="alert">{error}</p>}
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "กำลังเข้าสู่ระบบ..." : "เข้าสู่ระบบ"}
-        </button>
-      </form>
-    </section>
-  );
-}
 
 function Placeholder({ title, description }) {
   return (
@@ -275,6 +166,7 @@ function Protected({ session, children }) {
 }
 
 export default function App() {
+  const location = useLocation();
   const [session, setSession] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem("ku-session"));
@@ -288,15 +180,22 @@ export default function App() {
     setSession(null);
   }
 
+  const isDashboard = location.pathname === "/dashboard" || location.pathname === "/";
+
   return (
-    <div className="app-shell">
-      {session && (
-        <header>
+    <div className={`app-shell${session ? (isDashboard ? " dashboard-shell" : "") : " login-shell"}`}>
+      {session && !isDashboard && (
+        <header className="planc-sub-header">
           <NavLink className="brand" to="/dashboard">
-            <span className="brand-mark">KU</span>
-            <span>Student Planner</span>
+            <span className="brand-name">PlanC</span>
+            <svg viewBox="0 0 40 30" className="brand-cap" aria-hidden="true">
+              <path d="M2 8 20 2l18 6-18 7L2 8Z" />
+              <path d="M8 12v8c7 5 17 5 24 0v-8l-12 5-12-5Z" />
+              <path d="M36 9v11" />
+            </svg>
           </NavLink>
           <nav aria-label="เมนูหลัก">
+            <NavLink to="/dashboard">หน้าหลัก</NavLink>
             {sections.map((section) => (
               <NavLink key={section.to} to={section.to}>{section.title}</NavLink>
             ))}
@@ -304,10 +203,10 @@ export default function App() {
           </nav>
         </header>
       )}
-      <main>
+      <main className={isDashboard ? "dashboard-main" : ""}>
         <Routes>
           <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login onLogin={setSession} />} />
-          <Route path="/dashboard" element={<Protected session={session}><Home /></Protected>} />
+          <Route path="/dashboard" element={<Protected session={session}><Home session={session} onLogout={logout} /></Protected>} />
           <Route path="/study-plan" element={<Protected session={session}><StudyPlanner session={session} /></Protected>} />
           <Route path="/grades" element={<Protected session={session}><Grades session={session} /></Protected>} />
           <Route path="/cooperative-plan" element={<Protected session={session}><Placeholder title="จัดแผนสหกิจ" description="หน้านี้พร้อมสำหรับวางแผนสหกิจศึกษา" /></Protected>} />
