@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import Home from "./Home/Home";
 import Login from "./Login/Login";
+import Profile from "./Profile/Profile";
 import StudyPlanner from "./Planner/StudyPlanner";
 
 const sections = [
@@ -184,7 +185,7 @@ export default function App() {
 
   return (
     <div className={`app-shell${session ? (isDashboard ? " dashboard-shell" : "") : " login-shell"}`}>
-      {session && !isDashboard && (
+      {session && !isDashboard && location.pathname !== "/profile" && (
         <header className="planc-sub-header">
           <NavLink className="brand" to="/dashboard">
             <span className="brand-name">PlanC</span>
@@ -203,10 +204,11 @@ export default function App() {
           </nav>
         </header>
       )}
-      <main className={isDashboard ? "dashboard-main" : ""}>
+      <main className={isDashboard ? "dashboard-main" : location.pathname === "/profile" ? "profile-route-main" : ""}>
         <Routes>
           <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login onLogin={setSession} />} />
           <Route path="/dashboard" element={<Protected session={session}><Home session={session} onLogout={logout} /></Protected>} />
+          <Route path="/profile" element={<Protected session={session}><Profile session={session} onLogout={logout} /></Protected>} />
           <Route path="/study-plan" element={<Protected session={session}><StudyPlanner session={session} /></Protected>} />
           <Route path="/grades" element={<Protected session={session}><Grades session={session} /></Protected>} />
           <Route path="/cooperative-plan" element={<Protected session={session}><Placeholder title="จัดแผนสหกิจ" description="หน้านี้พร้อมสำหรับวางแผนสหกิจศึกษา" /></Protected>} />
