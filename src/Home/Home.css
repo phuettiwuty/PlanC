@@ -667,6 +667,17 @@
   gap: 16px;
 }
 
+.notifications-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed #CBD5E1;
+  border-radius: 10px;
+  color: #64748B;
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: center;
+}
+
 /* Figma Shadow Swatch notification pills: height 56px, border-radius 10px, font-size 20px */
 .notification-pill {
   min-height: 56px;

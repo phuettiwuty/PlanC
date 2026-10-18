@@ -14,6 +14,18 @@ const GRADE_POINTS = {
   F: 0.0,
 };
 
+const GENERATED_NOTIFICATIONS = new Set([
+  "เปิดลงทะเบียนการศึกษา ภาคต้น 2569",
+  "สถานะการเรียนปกติ ผลการเรียนล่าสุดได้รับการบันทึกเรียบร้อย",
+]);
+
+function getGradeNotifications(notifications) {
+  if (!Array.isArray(notifications)) return [];
+  return notifications.filter(
+    (notification) => notification && !GENERATED_NOTIFICATIONS.has(notification.text),
+  );
+}
+
 function isPassedGrade(grade) {
   if (!grade) return false;
   const g = String(grade).trim().toUpperCase();
@@ -73,6 +85,37 @@ function courseValue(obj, names, fallback = "") {
   return fallback;
 }
 
+function readCachedAcademicSummary(studentId) {
+  if (!studentId) return null;
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(`ku-academic-summary-${studentId}`) || "null");
+    if (
+      !cached ||
+      typeof cached !== "object" ||
+      !Number.isFinite(cached.earnedCredits) ||
+      !Number.isFinite(cached.totalCredits) ||
+      !Number.isFinite(cached.remainingCredits)
+    ) {
+      return null;
+    }
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+async function readResponsePayload(response) {
+  const body = await response.text();
+  if (!body.trim()) {
+    throw new Error("เซิร์ฟเวอร์ไม่ได้ส่งข้อมูลผลการเรียนกลับมา");
+  }
+  try {
+    return JSON.parse(body);
+  } catch {
+    throw new Error("รูปแบบข้อมูลผลการเรียนจากเซิร์ฟเวอร์ไม่ถูกต้อง");
+  }
+}
+
 function DrawerIcon({ type }) {
   const iconPaths = {
     home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9M9 20v-6h6v6" /></>,
@@ -113,15 +156,18 @@ export default function Home({ session, onLogout }) {
   });
 
   // Academic Summary State
-  const [stats, setStats] = useState({
-    earnedCredits: null,
-    totalCredits: 144,
-    remainingCredits: null,
-    gpax: "—",
-    status: "—",
-    notifications: [],
-    isLoading: true,
-    error: "",
+  const [stats, setStats] = useState(() => {
+    const cached = readCachedAcademicSummary(session?.idcode);
+    return {
+      earnedCredits: cached?.earnedCredits ?? null,
+      totalCredits: cached?.totalCredits ?? 144,
+      remainingCredits: cached?.remainingCredits ?? null,
+      gpax: cached?.gpax ?? "—",
+      status: cached?.status ?? "—",
+      notifications: getGradeNotifications(cached?.notifications),
+      isLoading: true,
+      error: "",
+    };
   });
 
   // Fetch real student profile and real grades from API
@@ -143,7 +189,7 @@ export default function Home({ session, onLogout }) {
             signal: controller.signal,
           });
           if (profRes.ok) {
-            const profData = await profRes.json();
+            const profData = await readResponsePayload(profRes);
             const foundFromProf = findStudentNameDeep(profData);
             if (foundFromProf) resolvedName = foundFromProf;
           }
@@ -158,7 +204,10 @@ export default function Home({ session, onLogout }) {
         });
 
         if (gradesRes.ok) {
-          const gradesData = await gradesRes.json();
+          const gradesData = await readResponsePayload(gradesRes);
+          if (!Array.isArray(gradesData) && (!gradesData || typeof gradesData !== "object")) {
+            throw new Error("ไม่พบข้อมูลผลการเรียนที่ใช้งานได้");
+          }
 
           // Deep search for real student name in grades response
           const foundFromGrades = findStudentNameDeep(gradesData);
@@ -239,19 +288,7 @@ export default function Home({ session, onLogout }) {
               text: `พบวิชา ${failedCourses[0].code} ไม่ผ่านในการศึกษา (ต้องลงทะเบียนเรียนซ้ำ)`,
             });
           }
-          notifs.push({
-            type: "blue",
-            text: "เปิดลงทะเบียนการศึกษา ภาคต้น 2569",
-          });
-
-          if (notifs.length < 3) {
-            notifs.unshift({
-              type: "green",
-              text: "สถานะการเรียนปกติ ผลการเรียนล่าสุดได้รับการบันทึกเรียบร้อย",
-            });
-          }
-
-          setStats({
+          const summary = {
             earnedCredits: finalEarned,
             totalCredits: totalCurriculum,
             remainingCredits: remaining,
@@ -260,10 +297,19 @@ export default function Home({ session, onLogout }) {
             notifications: notifs,
             isLoading: false,
             error: "",
-          });
+          };
+          setStats(summary);
+          try {
+            sessionStorage.setItem(
+              `ku-academic-summary-${session.idcode}`,
+              JSON.stringify({ ...summary, savedAt: Date.now() }),
+            );
+          } catch (storageError) {
+            console.error("Unable to cache academic summary:", storageError);
+          }
         } else {
-          const errorData = await gradesRes.json();
-          throw new Error(errorData.error || "ไม่สามารถดึงข้อมูลผลการเรียนได้");
+          const errorData = await readResponsePayload(gradesRes).catch(() => null);
+          throw new Error(errorData?.error || `ไม่สามารถดึงข้อมูลผลการเรียนได้ (HTTP ${gradesRes.status})`);
         }
 
         // Update profile state
@@ -291,11 +337,29 @@ export default function Home({ session, onLogout }) {
       } catch (err) {
         if (err.name !== "AbortError") {
           console.error("Failed to load real student data:", err);
-          setStats((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: err.message || "ไม่สามารถดึงข้อมูลผลการเรียนได้",
-          }));
+          const cached = readCachedAcademicSummary(session.idcode);
+          setStats((prev) => {
+            const hasCachedSummary = prev.earnedCredits !== null || cached !== null;
+            return {
+              ...prev,
+              ...(cached
+                ? {
+                    earnedCredits: cached.earnedCredits,
+                    totalCredits: cached.totalCredits,
+                    remainingCredits: cached.remainingCredits,
+                    gpax: cached.gpax,
+                    status: cached.status,
+                    notifications: getGradeNotifications(cached.notifications).length > 0
+                      ? getGradeNotifications(cached.notifications)
+                      : prev.notifications,
+                  }
+                : {}),
+              isLoading: false,
+              error: hasCachedSummary
+                ? "กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ เนื่องจากโหลดข้อมูลใหม่ไม่สำเร็จ"
+                : err.message || "ไม่สามารถดึงข้อมูลผลการเรียนได้",
+            };
+          });
         }
       } finally {
         setStats((prev) => ({ ...prev, isLoading: false }));
@@ -433,17 +497,14 @@ export default function Home({ session, onLogout }) {
                 <DrawerIcon type="calculator" />
                 <span>คำนวณสหกิต</span>
               </NavLink>
-              <button
-                type="button"
+              <NavLink
+                to="/profile"
                 className="drawer-profile-link"
-                onClick={() => {
-                  setShowNavDrawer(false);
-                  setShowUserMenu(true);
-                }}
+                onClick={() => setShowNavDrawer(false)}
               >
                 <DrawerIcon type="profile" />
                 <span>โปรไฟล์</span>
-              </button>
+              </NavLink>
             </nav>
             <div className="drawer-footer">
               <button
@@ -553,9 +614,11 @@ export default function Home({ session, onLogout }) {
               <h3 className="panel-title">สรุปข้อมูลการเรียน</h3>
             </div>
 
-            {stats.error ? (
+            {stats.error && stats.earnedCredits === null ? (
               <div className="dashboard-data-error" role="alert">{stats.error}</div>
-            ) : <div className="stats-2x2-grid">
+            ) : <>
+              {stats.error && <div className="dashboard-data-error" role="status">{stats.error}</div>}
+              <div className="stats-2x2-grid">
               {/* Stat 1: หน่วยกิตสะสม */}
               <div className="stat-card stat-green">
                 <div className="stat-icon-wrap">
@@ -621,7 +684,8 @@ export default function Home({ session, onLogout }) {
                   </strong>
                 </div>
               </div>
-            </div>}
+              </div>
+            </>}
           </article>
 
           {/* Right Column: ประกาศ/แจ้งเตือน */}
@@ -635,12 +699,20 @@ export default function Home({ session, onLogout }) {
             </div>
 
             <div className="notifications-list">
-              {stats.notifications.map((notif, index) => (
-                <div key={index} className={`notification-pill alert-${notif.type}`}>
-                  <span className="notification-dot"></span>
-                  <span className="notification-text">{notif.text}</span>
-                </div>
-              ))}
+              {stats.notifications.length > 0 ? (
+                stats.notifications.map((notif, index) => (
+                  <div key={index} className={`notification-pill alert-${notif.type}`}>
+                    <span className="notification-dot"></span>
+                    <span className="notification-text">{notif.text}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="notifications-empty" role="status">
+                  {stats.isLoading
+                    ? "กำลังโหลดประกาศ/แจ้งเตือน..."
+                    : "ยังไม่มีประกาศ/แจ้งเตือนในขณะนี้"}
+                </p>
+              )}
             </div>
           </article>
         </section>
