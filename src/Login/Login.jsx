@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { findStudentStatus } from "../studentStatus";
 import studentIllustration from "./assets/student-illustration.png?v=2";
 import "./Login.css";
 
@@ -56,7 +57,7 @@ export default function Login({ onLogin }) {
         stdCode: student.stdCode || student.stdId || student.studentCode || username,
         faculty: student.facultyNameTh || student.faculty || "",
         major: student.majorNameTh || student.major || "",
-        status: student.stdStatusDescTh || student.status || "ปกติ",
+        status: findStudentStatus(data),
         student,
         user: data.user,
       };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import campusIllustration from "./assets/campus-illustration.svg";
+import { findStudentStatus } from "../studentStatus";
 import "./Home.css";
 
 const GRADE_POINTS = {
@@ -149,7 +150,7 @@ export default function Home({ session, onLogout }) {
         std.name ||
         "",
       stdCode: session?.stdCode || std.stdCode || std.stdId || session?.username || session?.idcode || "",
-      status: session?.status || std.stdStatusDescTh || std.status || "ปกติ",
+      status: findStudentStatus(session),
       faculty: session?.faculty || std.facultyNameTh || std.faculty || "",
       major: session?.major || std.majorNameTh || std.major || "",
     };
@@ -163,7 +164,7 @@ export default function Home({ session, onLogout }) {
       totalCredits: cached?.totalCredits ?? 144,
       remainingCredits: cached?.remainingCredits ?? null,
       gpax: cached?.gpax ?? "—",
-      status: cached?.status ?? "—",
+      status: findStudentStatus(session) || "—",
       notifications: getGradeNotifications(cached?.notifications),
       isLoading: true,
       error: "",
@@ -177,11 +178,12 @@ export default function Home({ session, onLogout }) {
     const controller = new AbortController();
 
     async function loadRealData() {
+      let profileError = "";
       try {
         // 1. Fetch Profile info
         let resolvedName = profile.name;
         let resolvedCode = profile.stdCode;
-        let resolvedStatus = profile.status;
+        let resolvedStatus = findStudentStatus(session) || profile.status;
 
         try {
           const profRes = await fetch(`/api/profile?idcode=${encodeURIComponent(session.idcode)}`, {
@@ -191,11 +193,31 @@ export default function Home({ session, onLogout }) {
           if (profRes.ok) {
             const profData = await readResponsePayload(profRes);
             const foundFromProf = findStudentNameDeep(profData);
+            resolvedStatus = findStudentStatus(profData) || resolvedStatus;
             if (foundFromProf) resolvedName = foundFromProf;
+          } else {
+            profileError = `โหลดสถานะการศึกษาจากมหาวิทยาลัยไม่สำเร็จ (HTTP ${profRes.status})`;
           }
-        } catch {
-          // Profile endpoint fallback
+        } catch (profileFetchError) {
+          if (profileFetchError.name === "AbortError") throw profileFetchError;
+          profileError = `โหลดสถานะการศึกษาจากมหาวิทยาลัยไม่สำเร็จ: ${
+            profileFetchError.message || "ไม่สามารถเชื่อมต่อได้"
+          }`;
         }
+
+        if (resolvedName || resolvedCode || resolvedStatus) {
+          setProfile((prev) => ({
+            ...prev,
+            name: resolvedName || prev.name,
+            stdCode: resolvedCode || prev.stdCode,
+            status: resolvedStatus || prev.status,
+          }));
+        }
+        setStats((prev) => ({
+          ...prev,
+          status: resolvedStatus || "—",
+          error: profileError || prev.error,
+        }));
 
         // 2. Fetch Grades data
         const gradesRes = await fetch(`/api/grades?idcode=${encodeURIComponent(session.idcode)}`, {
@@ -272,14 +294,12 @@ export default function Home({ session, onLogout }) {
 
           const totalCurriculum = 144;
           const remaining = Math.max(0, totalCurriculum - finalEarned);
-          const computedStatus = finalGpax >= 2.0 || finalEarned === 0 ? "ปกติ" : "รอพินิจ";
-
           // Generate Notifications from real data
           const notifs = [];
           if (withdrawnCourses.length > 0) {
             notifs.push({
               type: "red",
-              text: `การถอนวิชา ${withdrawnCourses[0].code} อาจส่งผลต่อวิชาต่อเนื่อง`,
+              text: `การถอนวิชา ${withdrawnCourses[0].code} อาจส่งผลต่อวิชาที่เป็นตัวต่อ`,
             });
           }
           if (failedCourses.length > 0) {
@@ -293,10 +313,10 @@ export default function Home({ session, onLogout }) {
             totalCredits: totalCurriculum,
             remainingCredits: remaining,
             gpax: finalGpax > 0 ? finalGpax.toFixed(2) : "—",
-            status: resolvedStatus || computedStatus,
+            status: resolvedStatus || "—",
             notifications: notifs,
             isLoading: false,
-            error: "",
+            error: profileError,
           };
           setStats(summary);
           try {
@@ -313,7 +333,7 @@ export default function Home({ session, onLogout }) {
         }
 
         // Update profile state
-        if (resolvedName || resolvedCode) {
+        if (resolvedName || resolvedCode || resolvedStatus) {
           setProfile((prev) => {
             const next = {
               ...prev,
@@ -348,16 +368,19 @@ export default function Home({ session, onLogout }) {
                     totalCredits: cached.totalCredits,
                     remainingCredits: cached.remainingCredits,
                     gpax: cached.gpax,
-                    status: cached.status,
+                    status: prev.status,
                     notifications: getGradeNotifications(cached.notifications).length > 0
                       ? getGradeNotifications(cached.notifications)
                       : prev.notifications,
                   }
                 : {}),
               isLoading: false,
-              error: hasCachedSummary
-                ? "กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ เนื่องจากโหลดข้อมูลใหม่ไม่สำเร็จ"
-                : err.message || "ไม่สามารถดึงข้อมูลผลการเรียนได้",
+              error: [
+                profileError,
+                hasCachedSummary
+                  ? "กำลังแสดงข้อมูลล่าสุดที่บันทึกไว้ เนื่องจากโหลดข้อมูลใหม่ไม่สำเร็จ"
+                  : err.message || "ไม่สามารถดึงข้อมูลผลการเรียนได้",
+              ].filter(Boolean).join(" "),
             };
           });
         }
@@ -395,72 +418,74 @@ export default function Home({ session, onLogout }) {
     <div className="home-page">
       {/* Top Navigation Bar matching PlanC Design */}
       <header className="home-topbar">
-        <div className="topbar-left">
-          <button
-            type="button"
-            className="menu-toggle-btn"
-            aria-label="เปิดเมนู"
-            onClick={() => setShowNavDrawer(!showNavDrawer)}
-          >
-            <span className="hamburger-line"></span>
-            <span className="hamburger-line"></span>
-            <span className="hamburger-line"></span>
-          </button>
-
-          <NavLink to="/dashboard" className="home-brand">
-            <span className="brand-name">PlanC</span>
-            <svg viewBox="0 0 40 30" className="brand-cap" aria-hidden="true">
-              <path d="M2 8 20 2l18 6-18 7L2 8Z" />
-              <path d="M8 12v8c7 5 17 5 24 0v-8l-12 5-12-5Z" />
-              <path d="M36 9v11" />
-            </svg>
-          </NavLink>
-        </div>
-
-        <div className="topbar-right">
-          <div className="user-profile-dropdown">
+        <div className="topbar-container">
+          <div className="topbar-left">
             <button
               type="button"
-              className="user-profile-btn"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              aria-expanded={showUserMenu}
+              className="menu-toggle-btn"
+              aria-label="เปิดเมนู"
+              onClick={() => setShowNavDrawer(!showNavDrawer)}
             >
-              <svg viewBox="0 0 24 24" className="user-avatar-icon" aria-hidden="true">
-                <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.8" fill="none" />
-                <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
-              </svg>
-              <span className="user-fullname">{userHeaderText}</span>
-              <svg viewBox="0 0 20 20" fill="currentColor" className="dropdown-caret" aria-hidden="true">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+              <span className="hamburger-line"></span>
+              <span className="hamburger-line"></span>
+              <span className="hamburger-line"></span>
             </button>
 
-            {showUserMenu && (
-              <div className="user-menu-popover">
-                <div className="user-menu-header">
-                  <strong>{userName || userCode}</strong>
-                  <span>รหัสนิสิต: {userCode}</span>
-                  {profile.faculty && <span>คณะ: {profile.faculty}</span>}
-                  {profile.major && <span>สาขา: {profile.major}</span>}
+            <NavLink to="/dashboard" className="home-brand">
+              <span className="brand-name">PlanC</span>
+              <svg viewBox="0 0 40 30" className="brand-cap" aria-hidden="true">
+                <path d="M2 8 20 2l18 6-18 7L2 8Z" />
+                <path d="M8 12v8c7 5 17 5 24 0v-8l-12 5-12-5Z" />
+                <path d="M36 9v11" />
+              </svg>
+            </NavLink>
+          </div>
+
+          <div className="topbar-right">
+            <div className="user-profile-dropdown">
+              <button
+                type="button"
+                className="user-profile-btn"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                aria-expanded={showUserMenu}
+              >
+                <svg viewBox="0 0 24 24" className="user-avatar-icon" aria-hidden="true">
+                  <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.8" fill="none" />
+                  <path d="M5 20c0-3.87 3.13-7 7-7s7 3.13 7 7" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+                </svg>
+                <span className="user-fullname">{userHeaderText}</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" className="dropdown-caret" aria-hidden="true">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+
+              {showUserMenu && (
+                <div className="user-menu-popover">
+                  <div className="user-menu-header">
+                    <strong>{userName || userCode}</strong>
+                    <span>รหัสนิสิต: {userCode}</span>
+                    {profile.faculty && <span>คณะ: {profile.faculty}</span>}
+                    {profile.major && <span>สาขา: {profile.major}</span>}
+                  </div>
+                  <hr />
+                  <button
+                    type="button"
+                    className="user-menu-item logout-action"
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      if (onLogout) onLogout();
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" strokeWidth="2">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    ออกจากระบบ
+                  </button>
                 </div>
-                <hr />
-                <button
-                  type="button"
-                  className="user-menu-item logout-action"
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    if (onLogout) onLogout();
-                  }}
-                >
-                  <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" fill="none" strokeWidth="2">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                  ออกจากระบบ
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -523,14 +548,36 @@ export default function Home({ session, onLogout }) {
       )}
 
       {/* Main Home Content Container */}
-      <main className="home-container">
+      <div className="home-container">
         {/* 1. Hero Welcome Banner */}
         <section className="welcome-banner">
           <div className="banner-text-content">
             <span className="banner-greeting-en">Welcome Back,</span>
             <h1 className="banner-greeting-th">
-              สวัสดี คุณ{greetingName} <span className="wave-hand-emoji" role="img" aria-label="โบกมือ">✋</span>
+              สวัสดี คุณ{greetingName} <span className="wave-hand-emoji" role="img" aria-label="โบกมือ">👋</span>
             </h1>
+            <p className="banner-subtext">
+              {profile.faculty
+                ? `${profile.faculty}${profile.major ? ` • สาขา${profile.major}` : ""}`
+                : "ยินดีต้อนรับเข้าสู่ระบบ ติดตามและวางแผนการเรียนของคุณได้ที่นี่"}
+            </p>
+
+            <div className="banner-stats-pill">
+              <div className="banner-pill-item">
+                <span className="pill-label">เกรดเฉลี่ยสะสม:</span>
+                <strong className="pill-val">{stats.gpax}</strong>
+              </div>
+              <span className="banner-pill-divider">|</span>
+              <div className="banner-pill-item">
+                <span className="pill-label">หน่วยกิตสะสม:</span>
+                <strong className="pill-val">{stats.earnedCredits ?? 0} / {stats.totalCredits ?? 144}</strong>
+              </div>
+              <span className="banner-pill-divider">|</span>
+              <div className="banner-pill-item">
+                <span className="pill-label">สถานะ:</span>
+                <span className="pill-val status-green">{stats.status}</span>
+              </div>
+            </div>
           </div>
 
           <div className="banner-illustration-wrap">
@@ -545,7 +592,7 @@ export default function Home({ session, onLogout }) {
         {/* 2. Top Action Cards Row */}
         <section className="action-cards-grid" aria-label="เมนูลัดหลัก">
           {/* Action Card 1: วางแผนการเรียน */}
-          <NavLink to="/study-plan" className="action-card card-green">
+          <NavLink to="/study-plan" className="action-card card-action-green">
             <div className="action-icon-box">
               <svg viewBox="0 0 24 24" className="action-icon" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="18" rx="3" strokeWidth="2" stroke="currentColor" fill="none" />
@@ -563,10 +610,15 @@ export default function Home({ session, onLogout }) {
               <h2 className="action-title">วางแผนการเรียน</h2>
               <p className="action-subtitle">วางแผนการเรียนให้จบตามเป้าหมาย</p>
             </div>
+            <div className="action-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </div>
           </NavLink>
 
           {/* Action Card 2: เช็ควิชาและหน่วยกิต */}
-          <NavLink to="/grades" className="action-card card-blue">
+          <NavLink to="/grades" className="action-card card-action-blue">
             <div className="action-icon-box">
               <svg viewBox="0 0 24 24" className="action-icon" aria-hidden="true">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" strokeWidth="2" stroke="currentColor" fill="none" />
@@ -578,10 +630,15 @@ export default function Home({ session, onLogout }) {
               <h2 className="action-title">เช็ควิชาและหน่วยกิต</h2>
               <p className="action-subtitle">ตรวจสอบเงื่อนไขรายวิชา และหน่วยกิตที่เหลือ</p>
             </div>
+            <div className="action-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </div>
           </NavLink>
 
           {/* Action Card 3: คำนวณเกรดสหกิจ */}
-          <NavLink to="/cooperative-plan" className="action-card card-purple">
+          <NavLink to="/cooperative-plan" className="action-card card-action-purple">
             <div className="action-icon-box">
               <svg viewBox="0 0 24 24" className="action-icon" aria-hidden="true">
                 <rect x="4" y="2" width="16" height="20" rx="3" strokeWidth="2" stroke="currentColor" fill="none" />
@@ -598,6 +655,11 @@ export default function Home({ session, onLogout }) {
               <h2 className="action-title">คำนวณเกรดสหกิจ</h2>
               <p className="action-subtitle">คำนวณ GPA ตามเกณฑ์สหกิจ</p>
             </div>
+            <div className="action-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </div>
           </NavLink>
         </section>
 
@@ -606,84 +668,118 @@ export default function Home({ session, onLogout }) {
           {/* Left Column: สรุปข้อมูลการเรียน */}
           <article className="dashboard-panel panel-summary">
             <div className="panel-header">
-              <svg viewBox="0 0 24 24" className="panel-title-icon green-icon" aria-hidden="true">
-                <path d="M18 20V10" strokeWidth="2.5" stroke="currentColor" strokeLinecap="round" />
-                <path d="M12 20V4" strokeWidth="2.5" stroke="currentColor" strokeLinecap="round" />
-                <path d="M6 20v-6" strokeWidth="2.5" stroke="currentColor" strokeLinecap="round" />
-              </svg>
-              <h3 className="panel-title">สรุปข้อมูลการเรียน</h3>
+              <div className="panel-title-group">
+                <div className="panel-icon-badge green-badge">
+                  <svg viewBox="0 0 24 24" className="panel-title-icon" aria-hidden="true">
+                    <path d="M18 20V10" strokeWidth="2.5" stroke="currentColor" strokeLinecap="round" />
+                    <path d="M12 20V4" strokeWidth="2.5" stroke="currentColor" strokeLinecap="round" />
+                    <path d="M6 20v-6" strokeWidth="2.5" stroke="currentColor" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="panel-title">สรุปข้อมูลการเรียน</h3>
+                  <span className="panel-subtitle">ภาพรวมความก้าวหน้าทางการศึกษา</span>
+                </div>
+              </div>
             </div>
 
             {stats.error && stats.earnedCredits === null ? (
               <div className="dashboard-data-error" role="alert">{stats.error}</div>
             ) : <>
               {stats.error && <div className="dashboard-data-error" role="status">{stats.error}</div>}
+
+              {/* Curriculum Progress Bar */}
+              {stats.earnedCredits !== null && stats.totalCredits && (
+                <div className="curriculum-progress-widget">
+                  <div className="progress-info-row">
+                    <span className="progress-label">ความคืบหน้าหลักสูตร</span>
+                    <span className="progress-value-badge">
+                      {Math.min(100, Math.round((stats.earnedCredits / stats.totalCredits) * 100))}% สำเร็จ
+                    </span>
+                  </div>
+                  <div className="progress-bar-track" role="progressbar" aria-valuenow={stats.earnedCredits} aria-valuemin="0" aria-valuemax={stats.totalCredits}>
+                    <div
+                      className="progress-bar-fill"
+                      style={{
+                        width: `${Math.min(100, Math.round((stats.earnedCredits / stats.totalCredits) * 100))}%`
+                      }}
+                    />
+                  </div>
+                  <div className="progress-footer-row">
+                    <span>เก็บแล้ว {stats.earnedCredits} หน่วยกิต</span>
+                    <span>หลักสูตร {stats.totalCredits} หน่วยกิต</span>
+                  </div>
+                </div>
+              )}
+
               <div className="stats-2x2-grid">
-              {/* Stat 1: หน่วยกิตสะสม */}
-              <div className="stat-card stat-green">
-                <div className="stat-icon-wrap">
-                  <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
-                    <path d="M2 7l10-4 10 4-10 4-10-4z" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinejoin="round" />
-                    <path d="M6 10.5v5c4 3 8 3 12 0v-5" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" />
-                  </svg>
+                {/* Stat 1: หน่วยกิตสะสม */}
+                <div className="stat-card modern-stat-green">
+                  <div className="stat-icon-wrap">
+                    <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
+                      <path d="M2 7l10-4 10 4-10 4-10-4z" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinejoin="round" />
+                      <path d="M6 10.5v5c4 3 8 3 12 0v-5" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="stat-info">
+                    <span className="stat-label">หน่วยกิตสะสม</span>
+                    <strong className="stat-value">
+                      {stats.isLoading ? "..." : `${stats.earnedCredits ?? 0}/${stats.totalCredits ?? 144}`}
+                    </strong>
+                  </div>
                 </div>
-                <div className="stat-info">
-                  <span className="stat-label">หน่วยกิตสะสม</span>
-                  <strong className="stat-value">
-                    {stats.isLoading ? "..." : `${stats.earnedCredits}/${stats.totalCredits}`}
-                  </strong>
-                </div>
-              </div>
 
-              {/* Stat 2: หน่วยกิตที่เหลือ */}
-              <div className="stat-card stat-blue">
-                <div className="stat-icon-wrap">
-                  <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
-                    <rect x="4" y="3" width="16" height="18" rx="2" strokeWidth="1.8" stroke="currentColor" fill="none" />
-                    <line x1="8" y1="8" x2="16" y2="8" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
-                    <line x1="8" y1="12" x2="16" y2="12" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
-                    <line x1="8" y1="16" x2="12" y2="16" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
-                  </svg>
+                {/* Stat 2: หน่วยกิตที่เหลือ */}
+                <div className="stat-card modern-stat-blue">
+                  <div className="stat-icon-wrap">
+                    <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
+                      <rect x="4" y="3" width="16" height="18" rx="2" strokeWidth="1.8" stroke="currentColor" fill="none" />
+                      <line x1="8" y1="8" x2="16" y2="8" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
+                      <line x1="8" y1="12" x2="16" y2="12" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
+                      <line x1="8" y1="16" x2="12" y2="16" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="stat-info">
+                    <span className="stat-label">หน่วยกิตที่เหลือ</span>
+                    <strong className="stat-value">
+                      {stats.isLoading ? "..." : `${stats.remainingCredits ?? 0} หน่วยกิต`}
+                    </strong>
+                  </div>
                 </div>
-                <div className="stat-info">
-                  <span className="stat-label">หน่วยกิตที่เหลือ</span>
-                  <strong className="stat-value">
-                    {stats.isLoading ? "..." : `${stats.remainingCredits} หน่วยกิต`}
-                  </strong>
-                </div>
-              </div>
 
-              {/* Stat 3: เกรดเฉลี่ยสะสม */}
-              <div className="stat-card stat-purple">
-                <div className="stat-icon-wrap">
-                  <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
-                    <path d="M18 20V10" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
-                    <path d="M12 20V4" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
-                    <path d="M6 20v-6" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
-                  </svg>
+                {/* Stat 3: เกรดเฉลี่ยสะสม */}
+                <div className="stat-card modern-stat-purple">
+                  <div className="stat-icon-wrap">
+                    <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
+                      <path d="M18 20V10" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
+                      <path d="M12 20V4" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
+                      <path d="M6 20v-6" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <div className="stat-info">
+                    <span className="stat-label">เกรดเฉลี่ยสะสม (GPAX)</span>
+                    <strong className="stat-value">
+                      {stats.isLoading ? "..." : stats.gpax}
+                    </strong>
+                  </div>
                 </div>
-                <div className="stat-info">
-                  <span className="stat-label">เกรดเฉลี่ยสะสม</span>
-                  <strong className="stat-value">
-                    {stats.isLoading ? "..." : stats.gpax}
-                  </strong>
-                </div>
-              </div>
 
-              {/* Stat 4: สถานะการเรียน */}
-              <div className="stat-card stat-yellow">
-                <div className="stat-icon-wrap">
-                  <svg viewBox="0 0 24 24" className="stat-icon" fill="currentColor" aria-hidden="true">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
+                {/* Stat 4: สถานะการเรียน */}
+                <div className="stat-card modern-stat-yellow">
+                  <div className="stat-icon-wrap">
+                    <svg viewBox="0 0 24 24" className="stat-icon" fill="currentColor" aria-hidden="true">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  </div>
+                  <div className="stat-info">
+                    <span className="stat-label">สถานะการเรียน</span>
+                    <div className="stat-status-badge">
+                      <strong className="stat-value-badge">
+                        {stats.isLoading ? "..." : stats.status}
+                      </strong>
+                    </div>
+                  </div>
                 </div>
-                <div className="stat-info">
-                  <span className="stat-label">สถานะการเรียน</span>
-                  <strong className="stat-value">
-                    {stats.isLoading ? "..." : stats.status}
-                  </strong>
-                </div>
-              </div>
               </div>
             </>}
           </article>
@@ -691,42 +787,108 @@ export default function Home({ session, onLogout }) {
           {/* Right Column: ประกาศ/แจ้งเตือน */}
           <article className="dashboard-panel panel-announcements">
             <div className="panel-header">
-              <svg viewBox="0 0 24 24" className="panel-title-icon" stroke="currentColor" fill="none" strokeWidth="2" aria-hidden="true">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <h3 className="panel-title">ประกาศ/แจ้งเตือน</h3>
+              <div className="panel-title-group">
+                <div className="panel-icon-badge amber-badge">
+                  <svg viewBox="0 0 24 24" className="panel-title-icon" stroke="currentColor" fill="none" strokeWidth="2" aria-hidden="true">
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="panel-title">ประกาศ/แจ้งเตือน</h3>
+                  <span className="panel-subtitle">ข้อควรระวังและข่าวสารทางวิชาการ</span>
+                </div>
+              </div>
+              {stats.notifications.length > 0 && (
+                <span className="notification-counter-badge">{stats.notifications.length} รายการ</span>
+              )}
             </div>
 
             <div className="notifications-list">
               {stats.notifications.length > 0 ? (
                 stats.notifications.map((notif, index) => (
-                  <div key={index} className={`notification-pill alert-${notif.type}`}>
-                    <span className="notification-dot"></span>
-                    <span className="notification-text">{notif.text}</span>
+                  <div key={index} className={`modern-notification-item alert-${notif.type}`}>
+                    <div className="notif-indicator-bar"></div>
+                    <div className="notif-icon-circle">
+                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                    </div>
+                    <div className="notif-body">
+                      <span className="notif-tag">แจ้งเตือนรายวิชา</span>
+                      <p className="notif-text">{notif.text}</p>
+                    </div>
                   </div>
                 ))
               ) : (
-                <p className="notifications-empty" role="status">
-                  {stats.isLoading
-                    ? "กำลังโหลดประกาศ/แจ้งเตือน..."
-                    : "ยังไม่มีประกาศ/แจ้งเตือนในขณะนี้"}
-                </p>
+                <div className="notifications-empty-box" role="status">
+                  <div className="empty-bell-wrap">
+                    <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" fill="none" strokeWidth="1.5">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                  </div>
+                  <strong className="empty-title">ไม่มีประกาศหรือข้อควรระวัง</strong>
+                  <p className="empty-desc">
+                    {stats.isLoading
+                      ? "กำลังตรวจสอบข้อมูลล่าสุด..."
+                      : "แผนการเรียนและรายวิชาของคุณเป็นไปตามเกณฑ์ปกติ"}
+                  </p>
+                </div>
               )}
+            </div>
+
+            {/* Quick Academic Services */}
+            <div className="academic-quick-tools">
+              <span className="quick-tools-title">ทางลัดบริการนิสิต</span>
+              <div className="quick-tools-grid single-tool">
+                <a
+                  href="https://my.ku.th"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="quick-tool-link"
+                >
+                  <div className="quick-tool-icon ku-green">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                      <polyline points="15 3 21 3 21 9"/>
+                      <line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                  </div>
+                  <div className="quick-tool-text">
+                    <strong>ระบบ my.ku.th</strong>
+                    <span>ตารางเรียน • ลงทะเบียน</span>
+                  </div>
+                  <div className="quick-tool-arrow" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                      <polyline points="15 3 21 3 21 9"/>
+                      <line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                  </div>
+                </a>
+              </div>
             </div>
           </article>
         </section>
-      </main>
+      </div>
 
       {/* Footer Bar */}
       <footer className="home-footer">
-        <button
-          type="button"
-          className="report-issue-btn"
-          onClick={() => alert("ระบบแจ้งปัญหา: สามารถส่งเรื่องข้อผิดพลาดหรือข้อเสนอแนะถึงทีมพัฒนาระบบ PlanC")}
-        >
-          แจ้งปัญหา
-        </button>
+        <div className="footer-container">
+          <button
+            type="button"
+            className="report-issue-btn"
+            onClick={() => alert("ระบบแจ้งปัญหา: สามารถส่งเรื่องข้อผิดพลาดหรือข้อเสนอแนะถึงทีมพัฒนาระบบ PlanC")}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>แจ้งปัญหาการใช้งาน</span>
+          </button>
+        </div>
       </footer>
     </div>
   );

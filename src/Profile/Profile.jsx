@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { findStudentStatus } from "../studentStatus";
 import "./Profile.css";
 
 const DEFAULT_GOALS = [
@@ -61,7 +62,7 @@ function getCurrentStudyYear(entryYear) {
   return Math.max(1, new Date().getFullYear() + 543 - admitted + 1);
 }
 
-function loadAcademicSummary(studentId, fallbackStatus) {
+function loadAcademicSummary(studentId) {
   if (!studentId) return null;
   try {
     const cached = JSON.parse(sessionStorage.getItem(`ku-academic-summary-${studentId}`) || "null");
@@ -80,7 +81,6 @@ function loadAcademicSummary(studentId, fallbackStatus) {
       remainingCredits: Number(cached.remainingCredits),
       totalCredits: Number(cached.totalCredits),
       gpax: cached.gpax || "—",
-      status: cached.status || fallbackStatus || "ปกติ",
     };
   } catch {
     return null;
@@ -200,15 +200,26 @@ async function fetchPayload(url, session, signal) {
 
 function loadGoals(studentId) {
   try {
-    const savedGoals = JSON.parse(sessionStorage.getItem(`ku-profile-goals-${studentId}`) || "null");
+    const storageKey = `ku-profile-goals-${studentId}`;
+    const migrationKey = `ku-profile-goals-migrated-${studentId}`;
+    const savedGoals = JSON.parse(sessionStorage.getItem(storageKey) || "null");
     if (Array.isArray(savedGoals)) {
-      return savedGoals.filter(
+      const goals = savedGoals.filter(
         (goal) =>
           goal &&
           typeof goal.id === "string" &&
           typeof goal.text === "string" &&
           typeof goal.checked === "boolean",
       );
+      if (sessionStorage.getItem(migrationKey) !== "true") {
+        const migratedGoals = goals.map((goal) =>
+          goal.id === "default-0" && goal.checked ? { ...goal, checked: false } : goal,
+        );
+        sessionStorage.setItem(storageKey, JSON.stringify(migratedGoals));
+        sessionStorage.setItem(migrationKey, "true");
+        return migratedGoals;
+      }
+      return goals;
     }
   } catch {
     return null;
@@ -242,9 +253,9 @@ function ProfileIcon({ name, className = "" }) {
     calendar: <><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 9h18M8 13h.01M12 13h.01M16 13h.01M8 17h.01M12 17h.01" /></>,
     target: <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><path d="m12 12 8-8m-4 0h4v4" /></>,
     check: <path d="m5 12 4 4L19 6" />,
-    credit: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 8h10M7 12h10M7 16h6" /></>,
-    chart: <><path d="M4 19V5M4 19h17" /><path d="m7 15 4-4 3 2 6-7" /></>,
-    star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z" />,
+    credit: <><rect x="4" y="3" width="16" height="18" rx="2" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="12" y2="16" /></>,
+    chart: <><path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" /></>,
+    star: <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="currentColor" stroke="none" />,
   };
 
   return <svg {...common}>{paths[name]}</svg>;
@@ -304,10 +315,10 @@ export default function Profile({ session, onLogout }) {
       getCurrentStudyYear(entryYear),
     ),
     entryYear,
-    status: session?.status || student.stdStatusDescTh || student.status || "ปกติ",
+    status: findStudentStatus(session),
   });
   const [stats, setStats] = useState(() =>
-    loadAcademicSummary(session?.idcode, profile.status) || {
+    loadAcademicSummary(session?.idcode) || {
       completedCredits: null,
       remainingCredits: null,
       totalCredits: 144,
@@ -320,7 +331,7 @@ export default function Profile({ session, onLogout }) {
   const [goals, setGoals] = useState(
     () =>
       loadGoals(session?.idcode || studentCode) ||
-      DEFAULT_GOALS.map((text, index) => ({ id: `default-${index}`, text, checked: index === 0 })),
+      DEFAULT_GOALS.map((text, index) => ({ id: `default-${index}`, text, checked: false })),
   );
   const [isNavOpen, setIsNavOpen] = useState(false);
 
@@ -348,8 +359,10 @@ export default function Profile({ session, onLogout }) {
       if (controller.signal.aborted) return;
 
       const errors = [];
+      let officialStatus = "";
       if (profileResult.status === "fulfilled") {
         const payload = profileResult.value;
+        officialStatus = findStudentStatus(payload) || profile.status;
         const mergedProfile = {
           name: findStudentName(payload) || findStudentName(session) || profile.name,
           studentCode:
@@ -376,8 +389,7 @@ export default function Profile({ session, onLogout }) {
             profile.entryYear,
             entryYear,
           ),
-          status:
-            findValueDeep(payload, ["stdStatusDescTh", "status"]) || profile.status,
+          status: officialStatus,
         };
         setProfile(mergedProfile);
       } else {
@@ -396,7 +408,7 @@ export default function Profile({ session, onLogout }) {
               totalCredits: summary.totalCredits,
               remainingCredits: summary.remainingCredits,
               gpax: summary.gpax,
-              status: profile.status,
+              status: officialStatus || "—",
               savedAt: Date.now(),
             }),
           );
@@ -404,7 +416,7 @@ export default function Profile({ session, onLogout }) {
           console.error("Unable to cache academic summary:", storageError);
         }
       } else {
-        const cachedSummary = loadAcademicSummary(session.idcode, profile.status);
+        const cachedSummary = loadAcademicSummary(session.idcode);
         if (cachedSummary) {
           setStats(cachedSummary);
         }
@@ -476,94 +488,173 @@ export default function Profile({ session, onLogout }) {
 
       <div className="profile-content">
         <header className="home-topbar profile-home-topbar">
-          <div className="topbar-left">
-            <button
-              type="button"
-              className="menu-toggle-btn"
-              aria-label="เปิดเมนู"
-              aria-expanded={isNavOpen}
-              onClick={() => setIsNavOpen(true)}
-            >
-              <span className="hamburger-line" />
-              <span className="hamburger-line" />
-              <span className="hamburger-line" />
-            </button>
-            <NavLink to="/dashboard" className="home-brand">
-              <span className="brand-name">PlanC</span>
-              <svg viewBox="0 0 40 30" className="brand-cap" aria-hidden="true">
-                <path d="M2 8 20 2l18 6-18 7L2 8Z" />
-                <path d="M8 12v8c7 5 17 5 24 0v-8l-12 5-12-5Z" />
-                <path d="M36 9v11" />
-              </svg>
-            </NavLink>
-          </div>
-          <div className="topbar-right">
-            <div className="profile-topbar-user">
-              <ProfileIcon name="profile" />
-              <span>{profile.name || "นิสิต"} {profile.studentCode}</span>
+          <div className="topbar-container">
+            <div className="topbar-left">
+              <button
+                type="button"
+                className="menu-toggle-btn"
+                aria-label="เปิดเมนู"
+                aria-expanded={isNavOpen}
+                onClick={() => setIsNavOpen(true)}
+              >
+                <span className="hamburger-line" />
+                <span className="hamburger-line" />
+                <span className="hamburger-line" />
+              </button>
+              <NavLink to="/dashboard" className="home-brand">
+                <span className="brand-name">PlanC</span>
+                <svg viewBox="0 0 40 30" className="brand-cap" aria-hidden="true">
+                  <path d="M2 8 20 2l18 6-18 7L2 8Z" />
+                  <path d="M8 12v8c7 5 17 5 24 0v-8l-12 5-12-5Z" />
+                  <path d="M36 9v11" />
+                </svg>
+              </NavLink>
             </div>
           </div>
         </header>
 
         <section className="profile-heading">
-          <h1>ข้อมูลส่วนตัว</h1>
-          <p>ข้อมูลส่วนตัวและข้อมูลทางการศึกษา</p>
+          <div className="profile-heading-group">
+            <h1>ข้อมูลส่วนตัว</h1>
+            <p>ข้อมูลประวัตินิสิตและภาพรวมผลการศึกษา</p>
+          </div>
         </section>
 
-        <main className="profile-main-content">
+        <div className="profile-main-content">
           <section className="profile-identity-card" aria-label="ข้อมูลนิสิต">
-            <div className="profile-avatar" aria-hidden="true">
-              <ProfileIcon name="profile" />
-            </div>
-            <div className="profile-identity">
-              <h2>{profile.name || "ไม่พบชื่อผู้ใช้"}</h2>
-              <p className="profile-student-code">รหัสนิสิต {profile.studentCode || "—"}</p>
-              <ul className="profile-details">
-                <li><ProfileIcon name="profile" /><span>ชั้นปีที่ {profile.year || "—"}</span></li>
-                <li><ProfileIcon name="cap" /><span>{profile.faculty || "ไม่พบข้อมูลคณะ"}</span></li>
-                <li><ProfileIcon name="book" /><span>{profile.major || "ไม่พบข้อมูลสาขา"}</span></li>
-                <li><ProfileIcon name="pin" /><span>มหาวิทยาลัยเกษตรศาสตร์ วิทยาเขตศรีราชา</span></li>
-                <li><ProfileIcon name="calendar" /><span>ปีที่เข้าศึกษา {profile.entryYear || "—"}</span></li>
-              </ul>
+            <div className="profile-card-banner"></div>
+            <div className="profile-card-body">
+              <div className="profile-avatar-wrap">
+                <div className="profile-avatar" aria-hidden="true">
+                  <ProfileIcon name="profile" />
+                </div>
+              </div>
+              <div className="profile-identity">
+                <div className="profile-name-row">
+                  <h2>{profile.name || "ไม่พบชื่อผู้ใช้"}</h2>
+                  <span className="profile-code-badge">รหัสนิสิต {profile.studentCode || "—"}</span>
+                </div>
+                <div className="profile-chips-grid">
+                  <div className="profile-chip">
+                    <ProfileIcon name="profile" />
+                    <span>ชั้นปีที่ {profile.year || "—"}</span>
+                  </div>
+                  <div className="profile-chip">
+                    <ProfileIcon name="cap" />
+                    <span>{profile.faculty || "ไม่พบข้อมูลคณะ"}</span>
+                  </div>
+                  <div className="profile-chip">
+                    <ProfileIcon name="book" />
+                    <span>{profile.major || "ไม่พบข้อมูลสาขา"}</span>
+                  </div>
+                  <div className="profile-chip">
+                    <ProfileIcon name="pin" />
+                    <span>มหาวิทยาลัยเกษตรศาสตร์ วิทยาเขตศรีราชา</span>
+                  </div>
+                  <div className="profile-chip">
+                    <ProfileIcon name="calendar" />
+                    <span>ปีที่เข้าศึกษา {profile.entryYear || "—"}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
           {error && <p className="profile-load-error" role="alert">{error}</p>}
 
-          <section className="profile-stats" aria-label="สรุปผลการเรียน">
-            <article className="profile-stat-card credits-earned">
-              <ProfileIcon name="cap" />
-              <div><span>หน่วยกิตสะสม</span><strong>{isLoading ? "..." : `${stats.completedCredits ?? "—"}/${stats.totalCredits}`}</strong></div>
+          <section className="profile-stats-grid" aria-label="สรุปผลการเรียน">
+            <article className="stat-card modern-stat-green">
+              <div className="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
+                  <path d="M2 7l10-4 10 4-10 4-10-4z" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinejoin="round" />
+                  <path d="M6 10.5v5c4 3 8 3 12 0v-5" strokeWidth="1.8" stroke="currentColor" fill="none" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">หน่วยกิตสะสม</span>
+                <strong className="stat-value">{isLoading ? "..." : `${stats.completedCredits ?? "—"}/${stats.totalCredits}`}</strong>
+              </div>
             </article>
-            <article className="profile-stat-card credits-remaining">
-              <ProfileIcon name="credit" />
-              <div><span>หน่วยกิตที่เหลือ</span><strong>{isLoading ? "..." : `${stats.remainingCredits ?? "—"} หน่วยกิต`}</strong></div>
+
+            <article className="stat-card modern-stat-blue">
+              <div className="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
+                  <rect x="4" y="3" width="16" height="18" rx="2" strokeWidth="1.8" stroke="currentColor" fill="none" />
+                  <line x1="8" y1="8" x2="16" y2="8" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
+                  <line x1="8" y1="12" x2="16" y2="12" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
+                  <line x1="8" y1="16" x2="12" y2="16" strokeWidth="1.8" stroke="currentColor" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">หน่วยกิตที่เหลือ</span>
+                <strong className="stat-value">{isLoading ? "..." : `${stats.remainingCredits ?? "—"} หน่วยกิต`}</strong>
+              </div>
             </article>
-            <article className="profile-stat-card profile-gpax">
-              <ProfileIcon name="chart" />
-              <div><span>เกรดเฉลี่ยสะสม</span><strong>{isLoading ? "..." : stats.gpax}</strong></div>
+
+            <article className="stat-card modern-stat-purple">
+              <div className="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" className="stat-icon" aria-hidden="true">
+                  <path d="M18 20V10" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
+                  <path d="M12 20V4" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
+                  <path d="M6 20v-6" strokeWidth="2" stroke="currentColor" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">เกรดเฉลี่ยสะสม (GPAX)</span>
+                <strong className="stat-value">{isLoading ? "..." : stats.gpax}</strong>
+              </div>
             </article>
-            <article className="profile-stat-card profile-study-status">
-              <ProfileIcon name="star" />
-              <div><span>สถานะการเรียน</span><strong>{profile.status}</strong></div>
+
+            <article className="stat-card modern-stat-yellow">
+              <div className="stat-icon-wrap">
+                <svg viewBox="0 0 24 24" className="stat-icon" fill="currentColor" aria-hidden="true">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </div>
+              <div className="stat-info">
+                <span className="stat-label">สถานะการเรียน</span>
+                <div className="stat-status-badge">
+                  <strong className="stat-value-badge">{profile.status || "—"}</strong>
+                </div>
+              </div>
             </article>
           </section>
 
           <section className="profile-goals-card">
             <div className="profile-goals-heading">
-              <h2><ProfileIcon name="target" />เป้าหมายการเรียน</h2>
+              <div className="goals-title-group">
+                <div className="panel-icon-badge green-badge">
+                  <ProfileIcon name="target" />
+                </div>
+                <div>
+                  <h2>เป้าหมายการเรียน</h2>
+                  <span className="goals-subtitle">
+                    สำเร็จแล้ว {goals.filter((g) => g.checked).length} จาก {goals.length} เป้าหมาย
+                  </span>
+                </div>
+              </div>
               <button
                 type="button"
-                className="profile-goals-edit"
+                className="profile-goals-edit-btn"
                 onClick={() => setIsEditingGoals((editing) => !editing)}
               >
-                {isEditingGoals ? "เสร็จสิ้น" : "แก้ไข"}
+                {isEditingGoals ? "เสร็จสิ้น" : "แก้ไขเป้าหมาย"}
               </button>
             </div>
-            <ul className={isEditingGoals ? "is-editing" : ""}>
+
+            <div className="goals-progress-track">
+              <div
+                className="goals-progress-fill"
+                style={{
+                  width: `${goals.length ? Math.round((goals.filter((g) => g.checked).length / goals.length) * 100) : 0}%`,
+                }}
+              />
+            </div>
+
+            <ul className={`goals-list ${isEditingGoals ? "is-editing" : ""}`}>
               {goals.map((goal) => (
-                <li key={goal.id}>
-                  <label>
+                <li key={goal.id} className={`goal-item ${goal.checked ? "is-completed" : ""}`}>
+                  <label className="goal-checkbox-label">
                     <input
                       type="checkbox"
                       checked={goal.checked}
@@ -575,10 +666,15 @@ export default function Profile({ session, onLogout }) {
                         )
                       }
                     />
+                    <span className="goal-custom-check">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
                     {isEditingGoals ? (
                       <input
                         type="text"
-                        className="profile-goal-text"
+                        className="profile-goal-text-input"
                         aria-label="แก้ไขเป้าหมาย"
                         value={goal.text}
                         onChange={(event) =>
@@ -590,26 +686,27 @@ export default function Profile({ session, onLogout }) {
                         }
                       />
                     ) : (
-                      <span>{goal.text}</span>
+                      <span className="goal-text">{goal.text}</span>
                     )}
                   </label>
                   {isEditingGoals && (
                     <button
                       type="button"
-                      className="profile-goal-delete"
+                      className="profile-goal-delete-btn"
                       aria-label={`ลบเป้าหมาย ${goal.text}`}
                       onClick={() => setGoals((current) => current.filter((item) => item.id !== goal.id))}
                     >
-                      ลบ
+                      ✕
                     </button>
                   )}
                 </li>
               ))}
             </ul>
+
             {isEditingGoals && (
               <button
                 type="button"
-                className="profile-goal-add"
+                className="profile-goal-add-btn"
                 onClick={() =>
                   setGoals((current) => [
                     ...current,
@@ -617,19 +714,25 @@ export default function Profile({ session, onLogout }) {
                   ])
                 }
               >
-                + เพิ่มเป้าหมาย
+                + เพิ่มเป้าหมายใหม่
               </button>
             )}
           </section>
-        </main>
+        </div>
 
         <footer className="profile-footer">
-          <button
-            type="button"
-            onClick={() => alert("ระบบแจ้งปัญหา: สามารถส่งเรื่องข้อผิดพลาดหรือข้อเสนอแนะถึงทีมพัฒนาระบบ PlanC")}
-          >
-            แจ้งปัญหา
-          </button>
+          <div className="footer-container">
+            <button
+              type="button"
+              className="report-issue-btn"
+              onClick={() => alert("ระบบแจ้งปัญหา: สามารถส่งเรื่องข้อผิดพลาดหรือข้อเสนอแนะถึงทีมพัฒนาระบบ PlanC")}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>แจ้งปัญหาการใช้งาน</span>
+            </button>
+          </div>
         </footer>
       </div>
     </div>
