@@ -181,10 +181,13 @@ export default function App() {
     setSession(null);
   }
 
-  const isDashboard = location.pathname === "/dashboard" || location.pathname === "/";
+  const pathname = (location.pathname || "").toLowerCase().replace(/\/+$/, "");
+  const isDashboard = pathname === "/dashboard" || pathname === "";
+  const isProfile = pathname === "/profile";
+  const isFullWidthPage = isDashboard || isProfile;
 
   return (
-    <div className={`app-shell${session ? (isDashboard ? " dashboard-shell" : "") : " login-shell"}`}>
+    <div className={`app-shell${session ? (isFullWidthPage ? " dashboard-shell" : "") : " login-shell"}`}>
       {session && !isDashboard && location.pathname !== "/profile" && (
         <header className="planc-sub-header">
           <NavLink className="brand" to="/dashboard">
@@ -204,7 +207,7 @@ export default function App() {
           </nav>
         </header>
       )}
-      <main className={isDashboard ? "dashboard-main" : location.pathname === "/profile" ? "profile-route-main" : ""}>
+      <main className={isFullWidthPage ? "dashboard-main" : ""}>
         <Routes>
           <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <Login onLogin={setSession} />} />
           <Route path="/dashboard" element={<Protected session={session}><Home session={session} onLogout={logout} /></Protected>} />

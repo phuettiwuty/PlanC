@@ -11,7 +11,7 @@ button, input { font: inherit; }
 
 .app-shell { min-height: 100vh; background: radial-gradient(circle at 4% 8%, #dcefe4 0, transparent 30rem), #f7faf8; }
 .app-shell.dashboard-shell { background: #eef8f2; }
-.dashboard-main { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+.dashboard-main, .profile-route-main { width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
 .app-shell > header { width: min(1120px, calc(100% - 48px)); margin: 0 auto; min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 28px; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; font-weight: 750; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; color: #fff; background: #006b45; font-size: .8rem; letter-spacing: -.04em; }
@@ -19,7 +19,7 @@ nav { display: flex; gap: 22px; font-size: .9rem; color: #527265; }
 nav a:hover, nav a.active { color: #006b45; font-weight: 700; }
 .logout { border: 0; padding: 0; background: none; color: #527265; cursor: pointer; font-size: .9rem; }
 .logout:hover { color: #006b45; font-weight: 700; }
-main { width: min(1320px, calc(100% - 48px)); margin: 0 auto; }
+main:not(.dashboard-main) { width: min(1320px, calc(100% - 48px)); margin: 0 auto; }
 .home { padding: 96px 0 80px; }
 .eyebrow { margin: 0 0 12px; color: #08734e; font-size: .78rem; font-weight: 800; letter-spacing: .12em; }
 h1 { margin: 0; font-size: clamp(2.2rem, 6vw, 4.25rem); line-height: 1.12; letter-spacing: -.045em; }
