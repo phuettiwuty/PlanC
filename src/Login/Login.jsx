@@ -11,6 +11,25 @@ export default function Login({ onLogin }) {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  function signInWithDemo() {
+    const session = {
+      username: "6612345678",
+      idcode: "6612345678",
+      stdCode: "6612345678",
+      token: "planc-demo-year2",
+      name: "นิสิตตัวอย่าง ปี 2",
+      faculty: "คณะวิศวกรรมศาสตร์",
+      major: "วิศวกรรมคอมพิวเตอร์",
+      year: 2,
+      isDemo: true,
+      demoScenario: "year2-dropped-abstract",
+      student: { stdCode: "6612345678", stdNameTh: "นิสิตตัวอย่าง ปี 2" },
+    };
+    sessionStorage.setItem("ku-session", JSON.stringify(session));
+    onLogin(session);
+    navigate("/study-plan", { replace: true });
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
@@ -178,6 +197,9 @@ export default function Login({ onLogin }) {
                 ) : (
                   <span>เข้าสู่ระบบ</span>
                 )}
+              </button>
+              <button type="button" className="login-demo-btn" onClick={signInWithDemo}>
+                ใช้บัญชีตัวอย่าง: ปี 2 · ดรอป Abstract Data Types
               </button>
             </form>
 

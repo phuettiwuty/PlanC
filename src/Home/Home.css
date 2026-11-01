@@ -246,6 +246,19 @@
   font-weight: 500;
   color: #087F6A;
   font-family: "Geist", "Plus Jakarta Sans", sans-serif;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.drawer-brand-cap {
+  width: 22px;
+  height: 17px;
+  margin-top: -5px;
+  fill: #087F6A;
+  stroke: #087F6A;
+  stroke-width: 0.8;
+  stroke-linecap: round;
 }
 
 .drawer-close-btn {
@@ -1258,6 +1271,79 @@
     justify-content: center;
     max-height: 180px;
     padding-right: 0;
+  }
+}
+
+/* Shared desktop navigation shell used by Dashboard and Profile. */
+@media (min-width: 821px) {
+  .home-page.home-nav-open,
+  .profile-page.profile-nav-open {
+    padding-left: 242px;
+  }
+
+  .home-page,
+  .profile-page {
+    transition: padding-left .2s ease;
+  }
+
+  .home-nav-open .nav-drawer-backdrop,
+  .profile-nav-open .nav-drawer-backdrop {
+    inset: 0 auto 0 0;
+    width: 242px;
+    background: transparent;
+    backdrop-filter: none;
+    animation: none;
+  }
+
+  .home-nav-open .nav-drawer,
+  .profile-nav-open .nav-drawer {
+    width: 242px;
+    padding: 24px 14px 20px;
+    box-shadow: none;
+    animation: none;
+  }
+
+  .home-nav-open .drawer-header,
+  .profile-nav-open .drawer-header {
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .home-nav-open .drawer-close-btn,
+  .profile-nav-open .drawer-close-btn {
+    display: none;
+  }
+
+  .home-nav-open .drawer-brand,
+  .profile-nav-open .drawer-brand {
+    font-size: 30px;
+  }
+
+  .home-nav-open .drawer-nav a,
+  .home-nav-open .drawer-profile-link,
+  .profile-nav-open .drawer-nav a,
+  .profile-nav-open .drawer-profile-link {
+    min-height: 46px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+
+  .home-nav-open .drawer-logout-btn,
+  .profile-nav-open .drawer-logout-btn {
+    width: 132px;
+    height: 42px;
+    font-size: 14px;
+  }
+
+  .home-nav-open .home-brand,
+  .profile-nav-open .home-brand {
+    display: none;
+  }
+
+  .home-page.home-nav-open .topbar-container,
+  .profile-page.profile-nav-open .topbar-container {
+    height: 74px;
   }
 }
 

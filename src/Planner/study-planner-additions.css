@@ -1,0 +1,12 @@
+/* เพิ่มต่อท้ายไฟล์ CSS เดิมของ StudyPlanner — ปรับสีให้เข้ากับธีมได้ */
+.term-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.term-chip { min-height: 44px; border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; font-weight: 600; cursor: pointer; }
+.term-chip.current { background: #2563eb; border-color: #2563eb; color: #fff; }
+.term-chip:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
+
+.credit-bar { height: 8px; border-radius: 99px; background: #e2e8f0; overflow: hidden; margin: 8px 0 16px; }
+.credit-bar i { display: block; height: 100%; background: #2563eb; transition: width .2s; }
+
+.notice-undo { margin-left: 12px; background: none; border: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
+
+.library-search { width: 100%; min-height: 44px; padding: 0 12px; margin-bottom: 8px; border: 1px solid #cbd5e1; border-radius: 10px; }

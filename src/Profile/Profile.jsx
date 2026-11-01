@@ -333,7 +333,7 @@ export default function Profile({ session, onLogout }) {
       loadGoals(session?.idcode || studentCode) ||
       DEFAULT_GOALS.map((text, index) => ({ id: `default-${index}`, text, checked: false })),
   );
-  const [isNavOpen, setIsNavOpen] = useState(false);
+  const [isNavOpen, setIsNavOpen] = useState(() => typeof window !== "undefined" && window.innerWidth > 820);
 
   useEffect(() => {
     try {
@@ -439,7 +439,7 @@ export default function Profile({ session, onLogout }) {
     { to: "/dashboard", label: "หน้าหลัก", icon: "home" },
     { to: "/study-plan", label: "วางแผนการเรียน", icon: "plan" },
     { to: "/grades", label: "เช็ควิชาและหน่วยกิต", icon: "grades" },
-    { to: "/cooperative-plan", label: "คำนวณสหกิจ", icon: "calculator" },
+    { to: "/cooperative-plan", label: "ตรวจสิทธิ์สหกิจ", icon: "calculator" },
     { to: "/profile", label: "โปรไฟล์", icon: "profile" },
   ];
 
@@ -448,12 +448,17 @@ export default function Profile({ session, onLogout }) {
   }
 
   return (
-    <div className="profile-page">
+    <div className={`profile-page ${isNavOpen ? "profile-nav-open" : ""}`}>
       {isNavOpen && (
         <div className="nav-drawer-backdrop" onClick={() => setIsNavOpen(false)}>
           <aside className="nav-drawer" onClick={(event) => event.stopPropagation()}>
             <div className="drawer-header">
-              <span className="drawer-brand">PlanC</span>
+              <span className="drawer-brand">
+                <span>PlanC</span>
+                <svg className="drawer-brand-cap" viewBox="0 0 24 18" aria-hidden="true">
+                  <path d="M2 5.2 12 1l10 4.2-10 4.2L2 5.2Zm4.2 3.4v4.1c0 1.6 2.6 3.3 5.8 3.3s5.8-1.7 5.8-3.3V8.6L12 11 6.2 8.6Zm14.1-1.9v5.1" />
+                </svg>
+              </span>
               <button
                 type="button"
                 className="drawer-close-btn"
@@ -495,7 +500,7 @@ export default function Profile({ session, onLogout }) {
                 className="menu-toggle-btn"
                 aria-label="เปิดเมนู"
                 aria-expanded={isNavOpen}
-                onClick={() => setIsNavOpen(true)}
+                onClick={() => setIsNavOpen((current) => !current)}
               >
                 <span className="hamburger-line" />
                 <span className="hamburger-line" />
@@ -509,6 +514,10 @@ export default function Profile({ session, onLogout }) {
                   <path d="M36 9v11" />
                 </svg>
               </NavLink>
+            </div>
+            <div className="planner-user">
+              <ProfileIcon name="profile" />
+              <span>{profile.name || "นิสิต"}{profile.studentCode ? ` ${profile.studentCode}` : ""}</span>
             </div>
           </div>
         </header>

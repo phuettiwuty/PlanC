@@ -136,7 +136,7 @@ function DrawerIcon({ type }) {
 export default function Home({ session, onLogout }) {
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showNavDrawer, setShowNavDrawer] = useState(false);
+  const [showNavDrawer, setShowNavDrawer] = useState(() => typeof window !== "undefined" && window.innerWidth > 820);
 
   // Student Profile State initialized from session
   const [profile, setProfile] = useState(() => {
@@ -415,7 +415,7 @@ export default function Home({ session, onLogout }) {
   })();
 
   return (
-    <div className="home-page">
+    <div className={`home-page ${showNavDrawer ? "home-nav-open" : ""}`}>
       {/* Top Navigation Bar matching PlanC Design */}
       <header className="home-topbar">
         <div className="topbar-container">
@@ -495,7 +495,12 @@ export default function Home({ session, onLogout }) {
         <div className="nav-drawer-backdrop" onClick={() => setShowNavDrawer(false)}>
           <aside className="nav-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="drawer-header">
-              <span className="drawer-brand">PlanC</span>
+              <span className="drawer-brand">
+                <span>PlanC</span>
+                <svg className="drawer-brand-cap" viewBox="0 0 24 18" aria-hidden="true">
+                  <path d="M2 5.2 12 1l10 4.2-10 4.2L2 5.2Zm4.2 3.4v4.1c0 1.6 2.6 3.3 5.8 3.3s5.8-1.7 5.8-3.3V8.6L12 11 6.2 8.6Zm14.1-1.9v5.1" />
+                </svg>
+              </span>
               <button
                 type="button"
                 className="drawer-close-btn"
@@ -637,7 +642,7 @@ export default function Home({ session, onLogout }) {
             </div>
           </NavLink>
 
-          {/* Action Card 3: คำนวณเกรดสหกิจ */}
+          {/* Action Card 3: ตรวจสิทธิ์สหกิจ */}
           <NavLink to="/cooperative-plan" className="action-card card-action-purple">
             <div className="action-icon-box">
               <svg viewBox="0 0 24 24" className="action-icon" aria-hidden="true">
@@ -652,8 +657,8 @@ export default function Home({ session, onLogout }) {
               </svg>
             </div>
             <div className="action-text">
-              <h2 className="action-title">คำนวณเกรดสหกิจ</h2>
-              <p className="action-subtitle">คำนวณ GPA ตามเกณฑ์สหกิจ</p>
+              <h2 className="action-title">ตรวจสิทธิ์สหกิจ</h2>
+              <p className="action-subtitle">เช็กเกณฑ์จากเกรดและหน่วยกิตสะสม</p>
             </div>
             <div className="action-arrow" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

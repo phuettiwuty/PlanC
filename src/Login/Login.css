@@ -314,6 +314,23 @@
   cursor: wait;
 }
 
+.login-demo-btn {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: 1px solid #a7cfbb;
+  border-radius: 12px;
+  background: #f5fbf7;
+  color: #167252;
+  font: inherit;
+  font-size: clamp(12px, .9vw, 14px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-demo-btn:hover { background: #e9f7ee; border-color: #6bab86; }
+
 .btn-loading-state {
   display: inline-flex;
   align-items: center;

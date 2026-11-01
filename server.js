@@ -2,14 +2,63 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createClient } from "@supabase/supabase-js";
 import { kuLogin, kuGetGrades, kuGetProfile } from "./ku-login.mjs";
 
 /* ── Paths ─────────────────────────────────────────────────────── */
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Vite loads .env.local for the browser, but this lightweight Node server does
+// not. Load only simple KEY=value lines so the secret remains server-side.
+for (const envFile of [".env.local", ".env"]) {
+  const envPath = path.join(__dirname, envFile);
+  if (!fs.existsSync(envPath)) continue;
+  for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+    if (!match || process.env[match[1]]) continue;
+    process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
+  }
+}
 const port = process.env.PORT || (process.argv.includes("--api") ? 3001 : 3000);
 const publicDirectory = path.join(__dirname, "outputs");
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } })
+  : null;
+const verifiedSessions = new Map();
+const DEMO_STUDENT_ID = "6612345678";
+const DEMO_TOKEN = "planc-demo-year2";
+const demoGrades = {
+  results: [
+    {
+      year: "2568/1/", semester: "ภาคต้น", grade: [
+        { subject_code: "03603211", subject_name_en: "Discrete Mathematics", credit: 3, grade: "B+" },
+        { subject_code: "03603221", subject_name_en: "Digital Systems Design", credit: 3, grade: "A" },
+        { subject_code: "03603222", subject_name_en: "Logic Circuit Laboratory", credit: 1, grade: "A" },
+      ],
+    },
+    {
+      year: "2567/2/", semester: "ภาคปลาย", grade: [
+        { subject_code: "01417168", subject_name_en: "Engineering Mathematics II", credit: 3, grade: "A" },
+        { subject_code: "03603112", subject_name_en: "Programming Fundamentals II", credit: 3, grade: "B+" },
+        { subject_code: "01420112", subject_name_en: "General Physics II", credit: 3, grade: "B" },
+      ],
+    },
+    {
+      year: "2567/1/", semester: "ภาคต้น", grade: [
+        { subject_code: "01417167", subject_name_en: "Engineering Mathematics I", credit: 3, grade: "A" },
+        { subject_code: "03603111", subject_name_en: "Programming Fundamentals I", credit: 3, grade: "A" },
+        { subject_code: "01420111", subject_name_en: "General Physics I", credit: 3, grade: "B+" },
+      ],
+    },
+  ],
+};
+
+function isDemoRequest(req, idcode) {
+  return idcode === DEMO_STUDENT_ID && req.headers["x-access-token"] === DEMO_TOKEN;
+}
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -49,6 +98,106 @@ function parseBody(req) {
   });
 }
 
+function sendPlanError(res, error) {
+  console.error("Study plan API error:", error.message);
+  sendJSON(res, 500, { error: "ไม่สามารถบันทึกแผนการเรียนได้ในขณะนี้" });
+}
+
+function normalizePlan(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const name = String(raw.name || "").trim().slice(0, 60);
+  if (!name) return null;
+  const courses = Array.isArray(raw.courses)
+    ? raw.courses
+      .filter((course) => course && /^[A-Z0-9-]{3,24}$/i.test(String(course.code || "")) && Number.isInteger(course.term) && course.term >= 1 && course.term <= 8)
+      .map((course) => ({ code: String(course.code), term: course.term }))
+    : [];
+  return {
+    id: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(raw.id || "")) ? raw.id : null,
+    name,
+    courses,
+    createdAt: Number(raw.createdAt) || Date.now(),
+    updatedAt: Number(raw.updatedAt) || Date.now(),
+  };
+}
+
+async function verifyKuSession(req, idcode) {
+  const token = req.headers["x-access-token"];
+  if (!idcode || !token) throw new Error("Missing KU session");
+  const cacheKey = `${idcode}:${token}`;
+  const cached = verifiedSessions.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.profile;
+  const profile = await kuGetProfile(token, idcode);
+  if (!profile) throw new Error("KU session verification failed");
+  verifiedSessions.set(cacheKey, { profile, expiresAt: Date.now() + 5 * 60 * 1000 });
+  return profile;
+}
+
+async function getPlanOwner(req, idcode) {
+  if (!supabase) throw new Error("Supabase is not configured");
+  const kuProfile = await verifyKuSession(req, idcode);
+  const { data: existing, error: existingError } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("student_code", idcode)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  let userId = existing?.id;
+
+  // KU remains the authentication authority. This internal Supabase user only
+  // owns rows and is never exposed as a browser login account.
+  if (!userId) {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: `${idcode}@planc.local`,
+      email_confirm: true,
+      user_metadata: { student_code: idcode },
+    });
+    if (error) throw error;
+    userId = data.user.id;
+  }
+
+  const displayName = kuProfile.stdNameTh || kuProfile.name || kuProfile.displayName || null;
+  const { error: profileError } = await supabase.from("profiles").upsert({
+    id: userId,
+    student_code: idcode,
+    display_name: displayName,
+    updated_at: new Date().toISOString(),
+  });
+  if (profileError) throw profileError;
+  return userId;
+}
+
+async function readPlansForUser(userId) {
+  const { data: rows, error } = await supabase
+    .from("study_plans")
+    .select("id, name, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  if (!rows.length) return [];
+  const ids = rows.map((row) => row.id);
+  const { data: history, error: historyError } = await supabase
+    .from("study_plan_history")
+    .select("plan_id, snapshot, created_at")
+    .in("plan_id", ids)
+    .order("created_at", { ascending: false });
+  if (historyError) throw historyError;
+  const latestSnapshot = new Map();
+  for (const item of history || []) {
+    if (!latestSnapshot.has(item.plan_id)) latestSnapshot.set(item.plan_id, item.snapshot);
+  }
+  return rows.map((row) => {
+    const snapshot = latestSnapshot.get(row.id) || {};
+    return {
+      id: row.id,
+      name: row.name,
+      courses: Array.isArray(snapshot.courses) ? snapshot.courses : [],
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime(),
+    };
+  });
+}
+
 /* ── Server ────────────────────────────────────────────────────── */
 
 http
@@ -84,6 +233,11 @@ http
           return;
         }
 
+        if (isDemoRequest(req, idcode)) {
+          sendJSON(res, 200, demoGrades);
+          return;
+        }
+
         const data = await kuGetGrades(token, idcode);
         sendJSON(res, 200, data);
       } catch (err) {
@@ -107,12 +261,114 @@ http
           return;
         }
 
+        if (isDemoRequest(req, idcode)) {
+          sendJSON(res, 200, {
+            stdCode: DEMO_STUDENT_ID,
+            stdNameTh: "นิสิตตัวอย่าง ปี 2",
+            facultyNameTh: "คณะวิศวกรรมศาสตร์",
+            majorNameTh: "วิศวกรรมคอมพิวเตอร์",
+            year: 2,
+          });
+          return;
+        }
+
         const data = await kuGetProfile(token, idcode);
         sendJSON(res, 200, data || {});
       } catch (err) {
         sendJSON(res, 502, {
           error: err.message || "ไม่สามารถดึงข้อมูลโปรไฟล์ได้",
         });
+      }
+      return;
+    }
+
+    /* ── API: Study plans (KU-authenticated, Supabase-persisted) ── */
+    if (url.pathname === "/api/study-plans" && req.method === "GET") {
+      try {
+        const idcode = url.searchParams.get("idcode");
+        const userId = await getPlanOwner(req, idcode);
+        const plans = await readPlansForUser(userId);
+        sendJSON(res, 200, { plans });
+      } catch (err) {
+        sendPlanError(res, err);
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/study-plans/sync" && req.method === "POST") {
+      try {
+        const idcode = url.searchParams.get("idcode");
+        const userId = await getPlanOwner(req, idcode);
+        const body = await parseBody(req);
+        const incomingPlans = Array.isArray(body.plans) ? body.plans.map(normalizePlan).filter(Boolean).slice(0, 20) : [];
+        if (!incomingPlans.length) {
+          sendJSON(res, 400, { error: "ต้องมีแผนการเรียนอย่างน้อย 1 แผน" });
+          return;
+        }
+
+        const { data: existing, error: existingError } = await supabase
+          .from("study_plans")
+          .select("id, updated_at")
+          .eq("user_id", userId);
+        if (existingError) throw existingError;
+        const existingById = new Map((existing || []).map((plan) => [plan.id, plan]));
+
+        for (const plan of incomingPlans) {
+          let planId = plan.id;
+          const previous = planId ? existingById.get(planId) : null;
+          if (previous) {
+            const previousUpdatedAt = new Date(previous.updated_at).getTime();
+            if (plan.updatedAt <= previousUpdatedAt) continue;
+            const { error: updateError } = await supabase
+              .from("study_plans")
+              .update({ name: plan.name, updated_at: new Date(plan.updatedAt).toISOString() })
+              .eq("id", planId)
+              .eq("user_id", userId);
+            if (updateError) throw updateError;
+          } else {
+            const newPlan = {
+              user_id: userId,
+              name: plan.name,
+              created_at: new Date(plan.createdAt).toISOString(),
+              updated_at: new Date(plan.updatedAt).toISOString(),
+            };
+            if (planId) newPlan.id = planId;
+            const { data, error: insertError } = await supabase
+              .from("study_plans")
+              .insert(newPlan)
+              .select("id")
+              .single();
+            if (insertError) throw insertError;
+            planId = data.id;
+          }
+          const { error: historyError } = await supabase.from("study_plan_history").insert({
+            plan_id: planId,
+            action: previous ? "updated" : "created",
+            snapshot: { courses: plan.courses },
+          });
+          if (historyError) throw historyError;
+        }
+        sendJSON(res, 200, { ok: true });
+      } catch (err) {
+        sendPlanError(res, err);
+      }
+      return;
+    }
+
+    const deletePlanMatch = url.pathname.match(/^\/api\/study-plans\/([0-9a-f-]{36})$/i);
+    if (deletePlanMatch && req.method === "DELETE") {
+      try {
+        const idcode = url.searchParams.get("idcode");
+        const userId = await getPlanOwner(req, idcode);
+        const { error } = await supabase
+          .from("study_plans")
+          .delete()
+          .eq("id", deletePlanMatch[1])
+          .eq("user_id", userId);
+        if (error) throw error;
+        sendJSON(res, 200, { ok: true });
+      } catch (err) {
+        sendPlanError(res, err);
       }
       return;
     }
