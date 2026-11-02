@@ -57,7 +57,13 @@ if (!KU_APP_KEY || !KU_PUBLIC_KEY) {
 }
 
 function normalizePublicKey(pem) {
-  const base64 = pem
+  const normalizedPem = String(pem)
+    .trim()
+    .replace(/^['"]|['"]$/g, "")
+    // Netlify may preserve pasted line breaks as literal "\\n" characters.
+    .replace(/\\n/g, "\n");
+
+  const base64 = normalizedPem
     .replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, "");
 
   if (!base64 || !/^[A-Za-z0-9+/=]+$/.test(base64)) {
