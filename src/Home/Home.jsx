@@ -15,6 +15,26 @@ const GRADE_POINTS = {
   F: 0.0,
 };
 
+const NEXT_TERM_COURSES = [
+  { code: "01417267", name: "Engineering Mathematics III", credits: 3, pre: ["01417168"] },
+  { code: "03601203", name: "Electronics for Computer Engineers", credits: 3, pre: [] },
+  { code: "03601205", name: "Electric Circuit Laboratory for Computer Engineers", credits: 1, pre: [] },
+  { code: "03603211", name: "Discrete Mathematics", credits: 3, pre: [] },
+  { code: "03603212", name: "Abstract Data Types and Problem Solving", credits: 3, pre: ["03603112"] },
+  { code: "03603221", name: "Digital Systems Design", credits: 3, pre: [] },
+  { code: "03603213", name: "Algorithm Design and Analysis", credits: 3, pre: ["03603211", "03603212"] },
+  { code: "03603223", name: "Computer Architecture and Organization", credits: 3, pre: [] },
+  { code: "03603312", name: "Probability and Statistics for Informatics", credits: 3, pre: [] },
+  { code: "03603323", name: "Introduction to Embedded Systems", credits: 3, pre: [] },
+  { code: "03603332", name: "Operating Systems", credits: 3, pre: [] },
+  { code: "03603341", name: "Software Engineering", credits: 4, pre: [] },
+];
+
+const COOP_GROUPS = [
+  { requiredCredits: 19, codes: ["03603111", "03603112", "03603212", "03603213", "03603214", "03603241", "03603251", "03603252", "03603341", "03603342"] },
+  { requiredCredits: 20, codes: ["03603171", "03603211", "03603221", "03603222", "03603223", "03603312", "03603323", "03603324", "03603325", "03603332"] },
+];
+
 const GENERATED_NOTIFICATIONS = new Set([
   "เปิดลงทะเบียนการศึกษา ภาคต้น 2569",
   "สถานะการเรียนปกติ ผลการเรียนล่าสุดได้รับการบันทึกเรียบร้อย",
@@ -33,6 +53,27 @@ function isPassedGrade(grade) {
   if (["F", "W", "DROP", "I", "U", "N"].includes(g)) return false;
   if (["A", "B+", "B", "C+", "C", "D+", "D", "P", "S"].includes(g)) return true;
   return false;
+}
+
+function buildPlanInsights(passedCourseCodes, latestCourses, semesterCount) {
+  const passedCodes = new Set(passedCourseCodes);
+  const nextCourses = NEXT_TERM_COURSES
+    .filter((course) => !passedCodes.has(course.code) && course.pre.every((code) => passedCodes.has(code)))
+    .slice(0, 3);
+  const groupStates = COOP_GROUPS.map((group) => {
+    const records = group.codes.map((code) => latestCourses.get(code)).filter(Boolean);
+    const passedCredits = records.reduce((total, record) => total + (isPassedGrade(record.grade) ? record.credits : 0), 0);
+    const graded = records.filter((record) => GRADE_POINTS[record.grade] !== undefined);
+    const gradedCredits = graded.reduce((total, record) => total + record.credits, 0);
+    const gpa = gradedCredits ? graded.reduce((total, record) => total + GRADE_POINTS[record.grade] * record.credits, 0) / gradedCredits : 0;
+    return passedCredits >= group.requiredCredits && gradedCredits > 0 && gpa >= 2;
+  });
+  return {
+    studyYear: Math.min(4, Math.max(1, Math.ceil(Math.max(semesterCount, 1) / 2))),
+    nextCourses,
+    coopEligible: groupStates.every(Boolean),
+    coopCompletedGroups: groupStates.filter(Boolean).length,
+  };
 }
 
 function findStudentNameDeep(obj, depth = 0) {
@@ -164,6 +205,10 @@ export default function Home({ session, onLogout }) {
       totalCredits: cached?.totalCredits ?? 144,
       remainingCredits: cached?.remainingCredits ?? null,
       gpax: cached?.gpax ?? "—",
+      studyYear: cached?.studyYear ?? null,
+      nextCourses: cached?.nextCourses ?? [],
+      coopEligible: cached?.coopEligible ?? false,
+      coopCompletedGroups: cached?.coopCompletedGroups ?? 0,
       status: findStudentStatus(session) || "—",
       notifications: getGradeNotifications(cached?.notifications),
       isLoading: true,
@@ -245,6 +290,7 @@ export default function Home({ session, onLogout }) {
           let totalGradedCredits = 0;
           const failedCourses = [];
           const withdrawnCourses = [];
+          const latestCoursesByCode = new Map();
 
           for (const sem of semesters) {
             const courses = sem.grade || sem.grades || sem.courses || [];
@@ -271,6 +317,10 @@ export default function Home({ session, onLogout }) {
                 }
               }
 
+              if (code && !latestCoursesByCode.has(String(code).trim())) {
+                latestCoursesByCode.set(String(code).trim(), { grade: grade.toUpperCase(), credits: cr });
+              }
+
               if (grade.toUpperCase() === "F") {
                 failedCourses.push({ code, name });
               } else if (grade.toUpperCase() === "W") {
@@ -294,6 +344,7 @@ export default function Home({ session, onLogout }) {
 
           const totalCurriculum = 144;
           const remaining = Math.max(0, totalCurriculum - finalEarned);
+          const planInsights = buildPlanInsights([...earnedCreditsByCourse.keys()], latestCoursesByCode, semesters.length);
           // Generate Notifications from real data
           const notifs = [];
           if (withdrawnCourses.length > 0) {
@@ -313,6 +364,7 @@ export default function Home({ session, onLogout }) {
             totalCredits: totalCurriculum,
             remainingCredits: remaining,
             gpax: finalGpax > 0 ? finalGpax.toFixed(2) : "—",
+            ...planInsights,
             status: resolvedStatus || "—",
             notifications: notifs,
             isLoading: false,
@@ -368,6 +420,10 @@ export default function Home({ session, onLogout }) {
                     totalCredits: cached.totalCredits,
                     remainingCredits: cached.remainingCredits,
                     gpax: cached.gpax,
+                    studyYear: cached.studyYear ?? prev.studyYear,
+                    nextCourses: cached.nextCourses ?? prev.nextCourses,
+                    coopEligible: cached.coopEligible ?? prev.coopEligible,
+                    coopCompletedGroups: cached.coopCompletedGroups ?? prev.coopCompletedGroups,
                     status: prev.status,
                     notifications: getGradeNotifications(cached.notifications).length > 0
                       ? getGradeNotifications(cached.notifications)
@@ -789,92 +845,36 @@ export default function Home({ session, onLogout }) {
             </>}
           </article>
 
-          {/* Right Column: ประกาศ/แจ้งเตือน */}
-          <article className="dashboard-panel panel-announcements">
+          {/* Right Column: personal plan snapshot */}
+          <article className="dashboard-panel panel-plan-snapshot">
             <div className="panel-header">
               <div className="panel-title-group">
-                <div className="panel-icon-badge amber-badge">
+                <div className="panel-icon-badge blue-badge">
                   <svg viewBox="0 0 24 24" className="panel-title-icon" stroke="currentColor" fill="none" strokeWidth="2" aria-hidden="true">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    <rect x="4" y="3" width="16" height="18" rx="3" />
+                    <path d="M8 8h8M8 12h8M8 16h5" strokeLinecap="round" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="panel-title">ประกาศ/แจ้งเตือน</h3>
-                  <span className="panel-subtitle">ข้อควรระวังและข่าวสารทางวิชาการ</span>
+                  <h3 className="panel-title">สรุปแผนการเรียน</h3>
+                  <span className="panel-subtitle">ข้อมูลที่ช่วยตัดสินใจสำหรับภาคเรียนถัดไป</span>
                 </div>
               </div>
-              {stats.notifications.length > 0 && (
-                <span className="notification-counter-badge">{stats.notifications.length} รายการ</span>
-              )}
             </div>
 
-            <div className="notifications-list">
-              {stats.notifications.length > 0 ? (
-                stats.notifications.map((notif, index) => (
-                  <div key={index} className={`modern-notification-item alert-${notif.type}`}>
-                    <div className="notif-indicator-bar"></div>
-                    <div className="notif-icon-circle">
-                      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                    </div>
-                    <div className="notif-body">
-                      <span className="notif-tag">แจ้งเตือนรายวิชา</span>
-                      <p className="notif-text">{notif.text}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="notifications-empty-box" role="status">
-                  <div className="empty-bell-wrap">
-                    <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" fill="none" strokeWidth="1.5">
-                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                    </svg>
-                  </div>
-                  <strong className="empty-title">ไม่มีประกาศหรือข้อควรระวัง</strong>
-                  <p className="empty-desc">
-                    {stats.isLoading
-                      ? "กำลังตรวจสอบข้อมูลล่าสุด..."
-                      : "แผนการเรียนและรายวิชาของคุณเป็นไปตามเกณฑ์ปกติ"}
-                  </p>
+            <div className="plan-snapshot-metrics">
+              <div><span>กำลังศึกษา</span><strong>{stats.isLoading ? "..." : `ปี ${stats.studyYear || "—"}`}</strong></div>
+              <div><span>หน่วยกิตที่เหลือ</span><strong>{stats.isLoading ? "..." : `${stats.remainingCredits ?? 0}`}</strong><small>หน่วยกิต</small></div>
+              <div className={stats.coopEligible ? "coop-metric eligible" : "coop-metric"}><span>สิทธิ์สหกิจ</span><strong>{stats.isLoading ? "..." : stats.coopEligible ? "ผ่านเกณฑ์" : "กำลังสะสม"}</strong><small>{stats.isLoading ? "" : `${stats.coopCompletedGroups || 0}/2 กลุ่ม`}</small></div>
+            </div>
+
+            <div className="next-course-section">
+              <div className="next-course-heading"><strong>วิชาที่สามารถเรียนได้เทอมถัดไป</strong><NavLink to="/study-plan">ดูแผน</NavLink></div>
+              {stats.isLoading ? <p className="plan-snapshot-loading">กำลังวิเคราะห์รายวิชา...</p> : stats.nextCourses?.length ? (
+                <div className="next-course-list">
+                  {stats.nextCourses.map((course) => <NavLink key={course.code} to="/study-plan" className="next-course-item"><span><b>{course.code}</b><strong>{course.name}</strong></span><em>{course.credits} นก.</em></NavLink>)}
                 </div>
-              )}
-            </div>
-
-            {/* Quick Academic Services */}
-            <div className="academic-quick-tools">
-              <span className="quick-tools-title">ทางลัดบริการนิสิต</span>
-              <div className="quick-tools-grid single-tool">
-                <a
-                  href="https://my.ku.th"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="quick-tool-link"
-                >
-                  <div className="quick-tool-icon ku-green">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                      <polyline points="15 3 21 3 21 9"/>
-                      <line x1="10" y1="14" x2="21" y2="3"/>
-                    </svg>
-                  </div>
-                  <div className="quick-tool-text">
-                    <strong>ระบบ my.ku.th</strong>
-                    <span>ตารางเรียน • ลงทะเบียน</span>
-                  </div>
-                  <div className="quick-tool-arrow" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                      <polyline points="15 3 21 3 21 9"/>
-                      <line x1="10" y1="14" x2="21" y2="3"/>
-                    </svg>
-                  </div>
-                </a>
-              </div>
+              ) : <p className="plan-snapshot-loading">ยังไม่พบวิชาที่เข้าเงื่อนไขจากข้อมูลปัจจุบัน</p>}
             </div>
           </article>
         </section>

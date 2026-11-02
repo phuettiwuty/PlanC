@@ -747,6 +747,30 @@
   color: #D97706;
 }
 
+.panel-icon-badge.blue-badge { background: #EFF6FF; color: #2563EB; }
+
+.panel-plan-snapshot { gap: 0; }
+.plan-snapshot-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-bottom: 20px; }
+.plan-snapshot-metrics > div { display: grid; gap: 4px; min-height: 86px; padding: 13px; border: 1px solid #dbe9e2; border-radius: 13px; background: #f8fcf9; }
+.plan-snapshot-metrics > div:nth-child(2) { border-color: #d8e6f8; background: #f5f9ff; }
+.plan-snapshot-metrics > .coop-metric { border-color: #eadffb; background: #faf7ff; }
+.plan-snapshot-metrics > .coop-metric.eligible { border-color: #b7e5c9; background: #f2fcf5; }
+.plan-snapshot-metrics span { color: #607a6c; font-size: .7rem; font-weight: 700; }
+.plan-snapshot-metrics strong { color: #173f2e; font-size: 1rem; line-height: 1.2; }
+.plan-snapshot-metrics small { color: #70877c; font-size: .67rem; font-weight: 650; }
+.next-course-section { padding-top: 17px; border-top: 1px dashed #d9e8df; }
+.next-course-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.next-course-heading strong { color: #234d3a; font-size: .8rem; }
+.next-course-heading a { color: #087f6a; font-size: .72rem; font-weight: 800; text-decoration: none; }
+.next-course-list { display: grid; gap: 7px; }
+.next-course-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 1px solid #e0ece5; border-radius: 10px; color: #183f2f; text-decoration: none; transition: .18s ease; }
+.next-course-item:hover { border-color: #85c7a4; background: #f3fbf6; transform: translateX(2px); }
+.next-course-item span { display: grid; gap: 2px; min-width: 0; }
+.next-course-item b { color: #087f6a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .67rem; }
+.next-course-item strong { overflow: hidden; color: #294c3d; font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
+.next-course-item em { flex: 0 0 auto; color: #5d7a6b; font-size: .68rem; font-style: normal; font-weight: 750; }
+.plan-snapshot-loading { margin: 0; padding: 14px; border-radius: 10px; background: #f8faf9; color: #718277; font-size: .76rem; text-align: center; }
+
 .panel-title-icon {
   width: 22px;
   height: 22px;
@@ -1377,6 +1401,9 @@
   .stats-2x2-grid {
     grid-template-columns: 1fr;
   }
+
+  .plan-snapshot-metrics { grid-template-columns: 1fr; }
+  .plan-snapshot-metrics > div { min-height: 68px; }
 
   .action-cards-grid {
     grid-template-columns: minmax(0, 1fr);

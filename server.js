@@ -127,8 +127,14 @@ async function verifyKuSession(req, idcode) {
   const cacheKey = `${idcode}:${token}`;
   const cached = verifiedSessions.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.profile;
-  const profile = await kuGetProfile(token, idcode);
-  if (!profile) throw new Error("KU session verification failed");
+  let profile = await kuGetProfile(token, idcode);
+  // KU's profile endpoint does not respond consistently for every account.
+  // A successful grade request is an equivalent authenticated KU request for
+  // this student ID, so it is a safe fallback before writing personal plans.
+  if (!profile) {
+    await kuGetGrades(token, idcode);
+    profile = {};
+  }
   verifiedSessions.set(cacheKey, { profile, expiresAt: Date.now() + 5 * 60 * 1000 });
   return profile;
 }
@@ -196,6 +202,38 @@ async function readPlansForUser(userId) {
       updatedAt: new Date(row.updated_at).getTime(),
     };
   });
+}
+
+async function readPlanHistoryForUser(userId, planId) {
+  const { data: plan, error: planError } = await supabase
+    .from("study_plans")
+    .select("id, name")
+    .eq("id", planId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (planError) throw planError;
+  if (!plan) {
+    const error = new Error("ไม่พบแผนการเรียนนี้");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const { data: history, error: historyError } = await supabase
+    .from("study_plan_history")
+    .select("id, action, snapshot, created_at")
+    .eq("plan_id", planId)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (historyError) throw historyError;
+  return {
+    planName: plan.name,
+    history: (history || []).map((item) => ({
+      id: item.id,
+      action: item.action,
+      courses: Array.isArray(item.snapshot?.courses) ? item.snapshot.courses : [],
+      createdAt: item.created_at,
+    })),
+  };
 }
 
 /* ── Server ────────────────────────────────────────────────────── */
@@ -349,6 +387,19 @@ http
           if (historyError) throw historyError;
         }
         sendJSON(res, 200, { ok: true });
+      } catch (err) {
+        sendPlanError(res, err);
+      }
+      return;
+    }
+
+    const historyMatch = url.pathname.match(/^\/api\/study-plans\/([0-9a-f-]{36})\/history$/i);
+    if (historyMatch && req.method === "GET") {
+      try {
+        const idcode = url.searchParams.get("idcode");
+        const userId = await getPlanOwner(req, idcode);
+        const history = await readPlanHistoryForUser(userId, historyMatch[1]);
+        sendJSON(res, 200, history);
       } catch (err) {
         sendPlanError(res, err);
       }

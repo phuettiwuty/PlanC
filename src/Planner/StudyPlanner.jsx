@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { loadStudyPlans, makeStudyPlan, saveStudyPlans } from "./planRepository";
-import { deleteRemoteStudyPlan, fetchRemoteStudyPlans, syncRemoteStudyPlans } from "./planRemote";
+import { deleteRemoteStudyPlan, fetchRemoteStudyPlanHistory, fetchRemoteStudyPlans, syncRemoteStudyPlans } from "./planRemote";
 
 // Starter catalogue. This can later be replaced by the official curriculum file.
 const catalogue = [
@@ -20,7 +20,7 @@ const catalogue = [
   { code: "03603171", name: "วิศวกรรมคอมพิวเตอร์และสารสนเทศศาสตร์เบื้องต้น", credits: 3, term: 2, pre: [] },
   { code: "01420114", name: "ปฏิบัติการฟิสิกส์ II", credits: 1, term: 2, pre: ["01420113"] },
   { code: "03600014", name: "การแก้ปัญหาเชิงสร้างสรรค์และทักษะการคิดเชิงวิพากษ์", credits: 3, term: 2, pre: [] },
-  { code: "03600013", name: "Essential Computer Tools and Skills", credits: 1, term: 2, pre: [] },
+  { code: "03600013", name: "เครื่องมือและทักษะคอมพิวเตอร์ที่จำเป็น", credits: 1, term: 2, pre: [] },
   { code: "01417267", name: "คณิตศาสตร์วิศวกรรม III", credits: 3, term: 3, pre: ["01417168"] },
   { code: "03603211", name: "วิยุตคณิต", credits: 3, term: 3, pre: [] },
   { code: "03603212", name: "แบบชนิดข้อมูลนามธรรมและการแก้ปัญหา", credits: 3, term: 3, pre: ["03603111"] },
@@ -119,7 +119,18 @@ const englishCourseNames = {
 };
 
 function courseTitle(course) {
-  return englishCourseNames[course.code] || course.name;
+  return shouldUseThaiDisplay(course) ? course.name : (englishCourseNames[course.code] || course.name);
+}
+
+// Subject code 03603 is the Computer Engineering and Informatics major group.
+// General education, science foundations, languages, activities and co-op stay
+// in Thai so students can distinguish them at a glance.
+function isMajorCourse(course) {
+  return String(course?.code || "").startsWith("03603");
+}
+
+function shouldUseThaiDisplay(course) {
+  return Number(course?.term) >= 5 && !isMajorCourse(course);
 }
 
 const terms = Array.from({ length: 8 }, (_, index) => ({
@@ -202,6 +213,74 @@ function moveWithPrerequisiteFlow(currentPlan, code, term, passedCodes) {
   return { plan: nextPlan, shiftedCodes: [...shiftedCodes], unresolvedCodes: [...unresolvedCodes] };
 }
 
+function autoArrangePlan(currentPlan, passedCodes) {
+  const courseByCode = new Map(catalogue.map((course) => [course.code, course]));
+  const entryByCode = new Map(currentPlan.map((entry) => [entry.code, entry]));
+  const termCredits = Array.from({ length: 9 }, () => 0);
+  const scheduledTerms = new Map();
+  const deferredCodes = [];
+
+  // Completed courses are historical records: never move them.
+  currentPlan.forEach((entry) => {
+    const course = courseByCode.get(entry.code);
+    if (!course || !passedCodes.has(entry.code)) return;
+    scheduledTerms.set(entry.code, entry.term);
+    termCredits[entry.term] += course.credits;
+  });
+
+  const pending = currentPlan
+    .filter((entry) => courseByCode.has(entry.code) && !passedCodes.has(entry.code))
+    .sort((left, right) => (left.term - right.term) || left.code.localeCompare(right.code));
+
+  // Work through prerequisites first. An unavailable prerequisite means the
+  // dependent course stays out of the generated plan instead of being placed wrongly.
+  while (pending.length) {
+    let progressed = false;
+    for (let index = pending.length - 1; index >= 0; index -= 1) {
+      const entry = pending[index];
+      const course = courseByCode.get(entry.code);
+      const unavailablePrerequisite = course.pre.some((code) => !passedCodes.has(code) && !entryByCode.has(code));
+      if (unavailablePrerequisite) {
+        deferredCodes.push(entry.code);
+        pending.splice(index, 1);
+        progressed = true;
+        continue;
+      }
+      const waitingForPrerequisite = course.pre.some((code) => !passedCodes.has(code) && !scheduledTerms.has(code));
+      if (waitingForPrerequisite) continue;
+
+      const prerequisiteTerm = course.pre.reduce((latest, code) => (
+        passedCodes.has(code) ? latest : Math.max(latest, scheduledTerms.get(code) || 0)
+      ), 0);
+      const earliestTerm = Math.max(entry.term, prerequisiteTerm + (prerequisiteTerm ? 1 : 0));
+      let assignedTerm = 0;
+      for (let term = earliestTerm; term <= 8; term += 1) {
+        if (termCredits[term] + course.credits <= MAX_TERM_CREDITS) {
+          assignedTerm = term;
+          break;
+        }
+      }
+      if (!assignedTerm) deferredCodes.push(entry.code);
+      else {
+        scheduledTerms.set(entry.code, assignedTerm);
+        termCredits[assignedTerm] += course.credits;
+      }
+      pending.splice(index, 1);
+      progressed = true;
+    }
+    if (!progressed) {
+      deferredCodes.push(...pending.map((entry) => entry.code));
+      break;
+    }
+  }
+
+  const plan = currentPlan
+    .filter((entry) => !deferredCodes.includes(entry.code))
+    .map((entry) => ({ ...entry, term: scheduledTerms.get(entry.code) || entry.term }));
+  const movedCodes = plan.filter((entry) => entryByCode.get(entry.code)?.term !== entry.term).map((entry) => entry.code);
+  return { plan, movedCodes, deferredCodes };
+}
+
 const curriculumOrder = [
   ["01417167", "01420111", "01420113", "01999111", "03603111", "03604111"],
   ["01417168", "01420112", "01420114", "03601204", "03603112", "03603171"],
@@ -245,26 +324,29 @@ export default function StudyPlanner({ session, onLogout }) {
   const [showSidebar, setShowSidebar] = useState(true);
   const [courseFilter, setCourseFilter] = useState("all");
   const [activeYear, setActiveYear] = useState(0);
+  const [quickCourseCode, setQuickCourseCode] = useState("");
+  const [quickTargetTerm, setQuickTargetTerm] = useState("");
+  const [plannerPopup, setPlannerPopup] = useState(null);
+  const [plannerConfirmation, setPlannerConfirmation] = useState(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [planHistory, setPlanHistory] = useState([]);
+  const [historyStatus, setHistoryStatus] = useState("idle");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [remoteReady, setRemoteReady] = useState(false);
   const [remoteStatus, setRemoteStatus] = useState("กำลังเชื่อมพื้นที่เก็บแผน");
+  const [savedPlanSignature, setSavedPlanSignature] = useState("");
   const treeRef = useRef(null);
   const scrollRef = useRef(null);
   const yearRefs = useRef({});
   const nodeRefs = useRef({});
-  const syncTimerRef = useRef(null);
 
-  useEffect(() => {
-    saveStudyPlans(studentStorageId, plans, activePlanId);
-  }, [studentStorageId, plans, activePlanId]);
-
-  // Load the cloud copy before sending local changes, so opening a second
-  // device never overwrites an existing plan just because it starts empty.
+  // Load saved plans from the cloud. Editing stays local until the student
+  // explicitly presses the save button.
   useEffect(() => {
     let cancelled = false;
     if (session?.isDemo) {
       setRemoteReady(false);
-      setRemoteStatus("บัญชีตัวอย่าง · บันทึกในเครื่อง");
+      setRemoteStatus("บัญชีตัวอย่าง · กดบันทึกเพื่อเก็บในเครื่อง");
       return () => { cancelled = true; };
     }
     setRemoteReady(false);
@@ -273,10 +355,14 @@ export default function StudyPlanner({ session, onLogout }) {
       .then(({ plans: remotePlans }) => {
         if (cancelled) return;
         if (Array.isArray(remotePlans) && remotePlans.length) {
-          setPlanState({ plans: remotePlans, activePlanId: remotePlans[0].id });
+          const loadedState = { plans: remotePlans, activePlanId: remotePlans[0].id };
+          setPlanState(loadedState);
+          setSavedPlanSignature(JSON.stringify(loadedState.plans));
+          setRemoteStatus("โหลดแผนที่บันทึกไว้แล้ว");
+        } else {
+          setRemoteStatus("ยังไม่มีแผนที่บันทึกบนคลาวด์");
         }
         setRemoteReady(true);
-        setRemoteStatus("บันทึกอัตโนมัติแล้ว");
       })
       .catch(() => {
         if (cancelled) return;
@@ -286,18 +372,6 @@ export default function StudyPlanner({ session, onLogout }) {
       });
     return () => { cancelled = true; };
   }, [session]);
-
-  useEffect(() => {
-    if (!remoteReady) return undefined;
-    clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      setRemoteStatus("กำลังบันทึกแผน");
-      syncRemoteStudyPlans(session, planState)
-        .then(() => setRemoteStatus("บันทึกอัตโนมัติแล้ว"))
-        .catch(() => setRemoteStatus("บันทึกขึ้นคลาวด์ไม่สำเร็จ · แผนในเครื่องยังอยู่"));
-    }, 500);
-    return () => clearTimeout(syncTimerRef.current);
-  }, [remoteReady, session, planState]);
 
   function setPlan(nextPlan) {
     setPlanState((current) => {
@@ -310,6 +384,30 @@ export default function StudyPlanner({ session, onLogout }) {
           : item),
       };
     });
+  }
+
+  async function savePlanManually() {
+    if (session?.isDemo) {
+      saveStudyPlans(studentStorageId, plans, activePlanId);
+      setRemoteStatus("บัญชีตัวอย่าง · บันทึกในเครื่องแล้ว");
+      setPlannerPopup({ tone: "success", title: "บันทึกแผนแล้ว", message: "แผนของบัญชีตัวอย่างถูกเก็บไว้ในเครื่องนี้" });
+      return;
+    }
+    if (!remoteReady) {
+      setPlannerPopup({ tone: "warning", title: "ยังเชื่อมพื้นที่เก็บแผนไม่ได้", message: "กรุณารอให้ระบบเชื่อมต่อ Supabase สำเร็จ แล้วลองบันทึกอีกครั้ง" });
+      return;
+    }
+    setRemoteStatus("กำลังบันทึกแผน");
+    try {
+      await syncRemoteStudyPlans(session, planState);
+      saveStudyPlans(studentStorageId, plans, activePlanId);
+      setSavedPlanSignature(JSON.stringify(plans));
+      setRemoteStatus("บันทึกแผนแล้ว");
+      setPlannerPopup({ tone: "success", title: "บันทึกแผนแล้ว", message: "แผนนี้ถูกเก็บในบัญชีของคุณ และสามารถเลือกใช้ได้หลังเข้าสู่ระบบครั้งถัดไป" });
+    } catch {
+      setRemoteStatus("บันทึกขึ้นคลาวด์ไม่สำเร็จ");
+      setPlannerPopup({ tone: "warning", title: "บันทึกแผนไม่สำเร็จ", message: "แผนยังอยู่บนหน้านี้ กรุณาลองบันทึกอีกครั้ง" });
+    }
   }
 
   useEffect(() => {
@@ -432,6 +530,67 @@ export default function StudyPlanner({ session, onLogout }) {
     }
   }
 
+  function showPlannerConfirmation({ title, message, confirmLabel = "ยืนยัน", tone = "standard", onConfirm }) {
+    setPlannerConfirmation({ title, message, confirmLabel, tone, onConfirm });
+  }
+
+  function acceptPlannerConfirmation() {
+    const action = plannerConfirmation?.onConfirm;
+    setPlannerConfirmation(null);
+    action?.();
+  }
+
+  function performAutoArrange() {
+    setUndoPlan(plan);
+    const result = autoArrangePlan(plan, passedCodes);
+    setPlan(result.plan);
+    setActiveYear(0);
+    if (result.deferredCodes.length) {
+      setPlannerPopup({ tone: "warning", title: "ยังจัดแผนไม่ครบ", message: `ยังวางไม่ได้ ${result.deferredCodes.length} วิชา: ${result.deferredCodes.join(", ")}\nกรุณาตรวจวิชาบังคับก่อน หรือขยายแผนเกิน 4 ปี` });
+    } else {
+      setPlannerPopup({ tone: "success", title: "จัดแผนอัตโนมัติแล้ว", message: result.movedCodes.length
+        ? `ระบบปรับตำแหน่ง ${result.movedCodes.length} วิชาให้สอดคล้องกับเงื่อนไขแล้ว`
+        : "แผนปัจจุบันผ่านเงื่อนไขแล้ว จึงไม่มีวิชาที่ต้องเลื่อน" });
+    }
+  }
+
+  function runAutoArrange() {
+    showPlannerConfirmation({
+      title: "จัดแผนอัตโนมัติ",
+      message: "ระบบจะคงวิชาที่ผ่านแล้ว ตรวจวิชาบังคับก่อน และจัดวิชาที่ยังไม่ผ่านให้ไม่เกิน 22 หน่วยกิตต่อเทอม",
+      confirmLabel: "เริ่มจัดแผน",
+      onConfirm: performAutoArrange,
+    });
+  }
+
+  function runGuidedAutoPlan() {
+    const targetTerm = Number(quickTargetTerm);
+    if (!quickCourseCode || !targetTerm) {
+      setPlannerPopup({
+        tone: "warning",
+        title: "เลือกข้อมูลให้ครบก่อน",
+        message: "เลือกวิชาที่ต้องการย้าย และเทอมปลายทาง แล้วระบบจะจัดวิชาต่อเนื่องให้โดยอัตโนมัติ",
+      });
+      return;
+    }
+    const course = catalogue.find((item) => item.code === quickCourseCode);
+    if (!course) return;
+    setUndoPlan(plan);
+    const moved = moveWithPrerequisiteFlow(plan, quickCourseCode, targetTerm, passedCodes);
+    const arranged = autoArrangePlan(moved.plan, passedCodes);
+    setPlan(arranged.plan);
+    setSelectedCode(quickCourseCode);
+    setActiveYear(Math.ceil(targetTerm / 2));
+    const shifted = new Set([...moved.shiftedCodes, ...arranged.movedCodes]);
+    const unavailable = arranged.deferredCodes.length;
+    const shiftedList = [...shifted];
+    setPlannerPopup(unavailable
+      ? { tone: "warning", title: "ยังจัดแผนไม่ครบ", message: `ยังวางไม่ได้ ${unavailable} วิชา: ${arranged.deferredCodes.join(", ")}` }
+      : { tone: "success", title: "จัดแผนเรียบร้อย", message: shiftedList.length
+        ? `ระบบเลื่อนวิชาที่เกี่ยวข้อง ${shiftedList.length} วิชา\n${shiftedList.join(", ")}`
+        : "แผนเดิมเป็นไปตามเงื่อนไขแล้ว จึงไม่มีวิชาที่ต้องเลื่อนตาม" });
+  }
+
   function undoLastMove() {
     if (!undoPlan) return;
     setPlan(undoPlan);
@@ -452,10 +611,16 @@ export default function StudyPlanner({ session, onLogout }) {
   }
 
   function resetPlan() {
-    if (!window.confirm("คืนค่าแผนตัวอย่าง? แผนที่จัดไว้จะถูกแทนที่")) return;
-    setUndoPlan(plan);
-    setPlan(defaultCoursesForSession());
-    setPlanNotice("คืนค่าแผนตัวอย่างแล้ว");
+    showPlannerConfirmation({
+      title: "คืนค่าแผนตัวอย่าง",
+      message: "แผนที่จัดไว้ตอนนี้จะถูกแทนที่ด้วยแผนเริ่มต้น แต่คุณยังสามารถใช้ปุ่มเลิกทำเพื่อย้อนกลับได้",
+      confirmLabel: "คืนค่าแผน",
+      onConfirm: () => {
+        setUndoPlan(plan);
+        setPlan(defaultCoursesForSession());
+        setPlanNotice("คืนค่าแผนตัวอย่างแล้ว");
+      },
+    });
   }
 
   function applyPlanTemplate(type) {
@@ -482,16 +647,22 @@ export default function StudyPlanner({ session, onLogout }) {
     };
     const template = templates[type];
     if (!template) return;
-    if (!window.confirm(`เปลี่ยนเป็น “${template.name}” ? ${template.description}\nแผนปัจจุบันจะถูกแทนที่`)) return;
-    setUndoPlan(plan);
-    setPlanState((current) => ({
-      ...current,
-      plans: current.plans.map((item) => item.id === current.activePlanId
-        ? { ...item, name: template.name, courses: template.courses, updatedAt: Date.now() }
-        : item),
-    }));
-    setActiveYear(0);
-    setPlanNotice(`เปลี่ยนเป็น${template.name}แล้ว`);
+    showPlannerConfirmation({
+      title: `เปลี่ยนเป็น “${template.name}”`,
+      message: `${template.description}\nแผนปัจจุบันจะถูกแทนที่`,
+      confirmLabel: "เปลี่ยนแผน",
+      onConfirm: () => {
+        setUndoPlan(plan);
+        setPlanState((current) => ({
+          ...current,
+          plans: current.plans.map((item) => item.id === current.activePlanId
+            ? { ...item, name: template.name, courses: template.courses, updatedAt: Date.now() }
+            : item),
+        }));
+        setActiveYear(0);
+        setPlanNotice(`เปลี่ยนเป็น${template.name}แล้ว`);
+      },
+    });
   }
 
   function selectPlan(planId) {
@@ -510,41 +681,89 @@ export default function StudyPlanner({ session, onLogout }) {
   }
 
   function duplicatePlan() {
-    if (!activePlan) return;
-    const name = window.prompt("ชื่อสำเนาแผน", `${activePlan.name} (สำเนา)`)?.trim();
+    duplicatePlanFrom(activePlan);
+  }
+
+  function duplicatePlanFrom(planToCopy) {
+    if (!planToCopy) return;
+    const name = window.prompt("ชื่อสำเนาแผน", `${planToCopy.name} (สำเนา)`)?.trim();
     if (!name) return;
-    const nextPlan = makeStudyPlan(name, plan);
+    const nextPlan = makeStudyPlan(name, planToCopy.courses);
     setPlanState((current) => ({ plans: [...current.plans, nextPlan], activePlanId: nextPlan.id }));
     setUndoPlan(null);
     setPlanNotice(`สร้างสำเนา “${nextPlan.name}” แล้ว`);
   }
 
   function renamePlan() {
-    if (!activePlan) return;
-    const name = window.prompt("เปลี่ยนชื่อแผน", activePlan.name)?.trim().slice(0, 60);
-    if (!name || name === activePlan.name) return;
+    renamePlanById(activePlan?.id);
+  }
+
+  function renamePlanById(planId) {
+    const planToRename = plans.find((item) => item.id === planId);
+    if (!planToRename) return;
+    const name = window.prompt("เปลี่ยนชื่อแผน", planToRename.name)?.trim().slice(0, 60);
+    if (!name || name === planToRename.name) return;
     setPlanState((current) => ({
       ...current,
-      plans: current.plans.map((item) => item.id === current.activePlanId ? { ...item, name, updatedAt: Date.now() } : item),
+      plans: current.plans.map((item) => item.id === planToRename.id ? { ...item, name, updatedAt: Date.now() } : item),
     }));
   }
 
   function deletePlan() {
+    deletePlanById(activePlan?.id);
+  }
+
+  function deletePlanById(planId) {
+    const planToDelete = plans.find((item) => item.id === planId);
+    if (!planToDelete) return;
     if (plans.length <= 1) {
       setPlanNotice("ต้องมีแผนการเรียนอย่างน้อย 1 แผน");
       return;
     }
-    if (!window.confirm(`ลบแผน “${activePlan.name}” หรือไม่? การกระทำนี้ย้อนกลับไม่ได้`)) return;
-    if (remoteReady) {
-      deleteRemoteStudyPlan(session, activePlan.id)
-        .catch(() => setRemoteStatus("ลบแผนบนคลาวด์ไม่สำเร็จ · กรุณาลองอีกครั้ง"));
-    }
-    setPlanState((current) => {
-      const nextPlans = current.plans.filter((item) => item.id !== current.activePlanId);
-      return { plans: nextPlans, activePlanId: nextPlans[0].id };
+    showPlannerConfirmation({
+      title: `ลบแผน “${planToDelete.name}”`,
+      message: "การลบแผนไม่สามารถย้อนกลับได้",
+      confirmLabel: "ลบแผน",
+      tone: "danger",
+      onConfirm: () => {
+        if (remoteReady) {
+          deleteRemoteStudyPlan(session, planToDelete.id)
+            .catch(() => setRemoteStatus("ลบแผนบนคลาวด์ไม่สำเร็จ · กรุณาลองอีกครั้ง"));
+        }
+        setPlanState((current) => {
+          const nextPlans = current.plans.filter((item) => item.id !== planToDelete.id);
+          return { plans: nextPlans, activePlanId: nextPlans[0].id };
+        });
+        setUndoPlan(null);
+        setPlanNotice("ลบแผนการเรียนแล้ว");
+      },
     });
-    setUndoPlan(null);
-    setPlanNotice("ลบแผนการเรียนแล้ว");
+  }
+
+  async function openPlanHistory() {
+    if (!activePlan?.id) return;
+    if (!remoteReady) {
+      setPlannerPopup({ tone: "warning", title: "ยังโหลดประวัติไม่ได้", message: "รอให้ระบบเชื่อมพื้นที่เก็บแผนก่อน แล้วลองอีกครั้ง" });
+      return;
+    }
+    setIsHistoryOpen(true);
+    setHistoryStatus("loading");
+    try {
+      const data = await fetchRemoteStudyPlanHistory(session, activePlan.id);
+      setPlanHistory(Array.isArray(data.history) ? data.history : []);
+      setHistoryStatus("ready");
+    } catch (error) {
+      setHistoryStatus("error");
+    }
+  }
+
+  function restoreHistoryVersion(historyItem) {
+    if (!historyItem?.courses?.length) return;
+    setUndoPlan(plan);
+    setPlan(historyItem.courses);
+    setIsHistoryOpen(false);
+    setPlanNotice("คืนค่าแผนจากประวัติแล้ว · ระบบกำลังบันทึกเป็นเวอร์ชันใหม่");
+    setPlannerPopup({ tone: "success", title: "คืนค่าเวอร์ชันก่อนหน้าแล้ว", message: `แผนมี ${historyItem.courses.length} รายวิชา และบันทึกใหม่จะถูกเพิ่มในประวัติ` });
   }
 
   function exportPlan() {
@@ -709,6 +928,7 @@ export default function StudyPlanner({ session, onLogout }) {
 
   const totalPlannedCredits = creditsByTerm.reduce((total, term) => total + term.credits, 0);
   const visibleYears = activeYear === 0 ? [1, 2, 3, 4] : [activeYear];
+  const hasUnsavedChanges = remoteReady && Boolean(savedPlanSignature) && savedPlanSignature !== JSON.stringify(plans);
   const remainingCredits = Math.max(0, TOTAL_CREDITS - totalPlannedCredits);
   const missingRequiredCourses = catalogue.filter((course) => !passedCodes.has(course.code) && !planByCode.has(course.code));
   const overloadedTerms = creditsByTerm.filter((term) => term.credits > MAX_TERM_CREDITS);
@@ -722,6 +942,46 @@ export default function StudyPlanner({ session, onLogout }) {
 
   return (
     <div className={`planner-app ${showSidebar ? "sidebar-open" : "sidebar-closed"}`}>
+      {plannerPopup && (
+        <div className="planner-popup-layer" role="presentation" onMouseDown={() => setPlannerPopup(null)}>
+          <section className={`planner-popup ${plannerPopup.tone}`} role="dialog" aria-modal="true" aria-labelledby="planner-popup-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className="planner-popup-close" aria-label="ปิด" onClick={() => setPlannerPopup(null)}>×</button>
+            <span className="planner-popup-icon">{plannerPopup.tone === "success" ? "✓" : "!"}</span>
+            <div>
+              <p>{plannerPopup.tone === "success" ? "PLAN UPDATED" : "ACTION NEEDED"}</p>
+              <h2 id="planner-popup-title">{plannerPopup.title}</h2>
+              <div className="planner-popup-message">{plannerPopup.message}</div>
+            </div>
+            <button type="button" className="planner-popup-confirm" onClick={() => setPlannerPopup(null)}>เข้าใจแล้ว</button>
+          </section>
+        </div>
+      )}
+      {plannerConfirmation && (
+        <div className="planner-popup-layer" role="presentation" onMouseDown={() => setPlannerConfirmation(null)}>
+          <section className={`planner-confirm-popup ${plannerConfirmation.tone}`} role="dialog" aria-modal="true" aria-labelledby="planner-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
+            <span className="planner-confirm-icon">?</span>
+            <div>
+              <p>ยืนยันการทำรายการ</p>
+              <h2 id="planner-confirm-title">{plannerConfirmation.title}</h2>
+              <div className="planner-popup-message">{plannerConfirmation.message}</div>
+            </div>
+            <div className="planner-confirm-actions"><button type="button" onClick={() => setPlannerConfirmation(null)}>ยกเลิก</button><button className="planner-confirm-accept" type="button" onClick={acceptPlannerConfirmation}>{plannerConfirmation.confirmLabel}</button></div>
+          </section>
+        </div>
+      )}
+      {isHistoryOpen && (
+        <div className="plan-history-layer" role="presentation" onMouseDown={() => setIsHistoryOpen(false)}>
+          <section className="plan-history-modal" role="dialog" aria-modal="true" aria-labelledby="plan-history-title" onMouseDown={(event) => event.stopPropagation()}>
+            <header><div><p>PLAN HISTORY</p><h2 id="plan-history-title">ประวัติแผน: {activePlan?.name}</h2><span>เลือกเวอร์ชันก่อนหน้าเพื่อคืนค่าแผน</span></div><button type="button" aria-label="ปิดประวัติแผน" onClick={() => setIsHistoryOpen(false)}>×</button></header>
+            <div className="plan-history-list">
+              {historyStatus === "loading" && <p className="plan-history-empty">กำลังโหลดประวัติแผน…</p>}
+              {historyStatus === "error" && <p className="plan-history-empty">ไม่สามารถโหลดประวัติได้ กรุณาลองใหม่อีกครั้ง</p>}
+              {historyStatus === "ready" && planHistory.length === 0 && <p className="plan-history-empty">ยังไม่มีประวัติที่บันทึกไว้</p>}
+              {historyStatus === "ready" && planHistory.map((item, index) => <article className="plan-history-item" key={item.id}><div><span className={item.action === "created" ? "history-action created" : "history-action"}>{item.action === "created" ? "สร้างแผน" : "บันทึกการแก้ไข"}</span><strong>{index === 0 ? "เวอร์ชันล่าสุด" : `เวอร์ชันก่อนหน้า ${index}`}</strong><small>{new Date(item.createdAt).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" })} · {item.courses.length} รายวิชา</small></div><button type="button" disabled={index === 0} onClick={() => restoreHistoryVersion(item)}>{index === 0 ? "กำลังใช้งาน" : "คืนค่าเวอร์ชันนี้"}</button></article>)}
+            </div>
+          </section>
+        </div>
+      )}
       <button className="planner-sidebar-backdrop" type="button" aria-label="ปิดเมนู" onClick={() => setShowSidebar(false)} />
       <aside className="planner-sidebar" aria-label="เมนูหลัก">
         <NavLink className="planner-sidebar-brand" to="/dashboard">
@@ -760,12 +1020,22 @@ export default function StudyPlanner({ session, onLogout }) {
       </div>
 
       <div className="plan-manager" aria-label="จัดการแผนการเรียน">
-        <div className="plan-manager-current"><span>แผนการเรียนของฉัน</span><strong>{activePlan?.name || "แผนหลัก"}</strong><small className="plan-save-status" aria-live="polite">{remoteStatus}</small></div>
         <div className="plan-manager-actions">
-          <button type="button" onClick={() => applyPlanTemplate("standard")}>แผนตามหลักสูตร</button>
+          <button type="button" className="plan-save-manual" onClick={savePlanManually}>บันทึกแผน</button>
+          <button type="button" className="plan-auto-arrange" onClick={runAutoArrange}>จัดแผนอัตโนมัติ</button>
+          <button type="button" onClick={openPlanHistory}>ประวัติแผน</button>
           <button type="button" onClick={exportPlan}>บันทึกเป็นรูปภาพ</button>
         </div>
       </div>
+
+      <section className="guided-planner" aria-labelledby="guided-planner-title">
+        <div className="guided-planner-intro"><span>จัดแผนแบบง่าย</span><h2 id="guided-planner-title">ต้องการเลื่อนหรือดรอปวิชา?</h2><p>เลือกวิชาและเทอมใหม่ ระบบจะจัดวิชาต่อเนื่องให้ตามเงื่อนไข</p></div>
+        <div className="guided-planner-steps">
+          <label><b>1</b><span>เลือกวิชา</span><select value={quickCourseCode} onChange={(event) => setQuickCourseCode(event.target.value)}><option value="">เลือกรายวิชา</option>{catalogue.map((course) => <option key={course.code} value={course.code}>{course.code} · {courseTitle(course)}</option>)}</select></label>
+          <label><b>2</b><span>เรียนใหม่ใน</span><select value={quickTargetTerm} onChange={(event) => setQuickTargetTerm(event.target.value)}><option value="">เลือกเทอม</option>{terms.map((term) => <option key={term.id} value={term.id}>{term.label}</option>)}</select></label>
+          <button type="button" onClick={runGuidedAutoPlan}><span>3</span> จัดแผนให้อัตโนมัติ</button>
+        </div>
+      </section>
 
       <div className="planner-credit-row"><span>หน่วยกิตในแผน</span><strong>{totalPlannedCredits}</strong><small>/ {TOTAL_CREDITS} หน่วยกิต</small></div>
       <div className="credit-bar" role="progressbar" aria-label="หน่วยกิตในแผน" aria-valuemin={0} aria-valuemax={TOTAL_CREDITS} aria-valuenow={totalPlannedCredits}>
@@ -836,7 +1106,7 @@ export default function StudyPlanner({ session, onLogout }) {
                           const missing = prerequisiteStatus(course); const isPassed = passedCodes.has(course.code); const isSelected = selectedCode === course.code;
                           const isPrerequisite = prerequisiteCodes.has(course.code);
                           const isFollowing = followingCodes.has(course.code);
-                          return <button type="button" title={`Select ${course.code}: ${courseTitle(course)}`} aria-pressed={isSelected} className={`course-node ${isSelected ? "selected" : ""} ${relatedCodes.has(course.code) ? "related" : ""} ${isPrerequisite ? "prerequisite-highlight" : ""} ${isFollowing ? "following-highlight" : ""} ${isPassed ? "passed" : ""} ${missing.length ? "blocked" : ""}`} key={course.code} onClick={() => { setSelectedCode(course.code); setIsDetailOpen(false); }} draggable onDragStart={(event) => beginDrag(event, course.code)} onDragEnd={() => { setDraggedCode(""); setDropTerm(null); }} ref={(element) => { nodeRefs.current[course.code] = element; }}>
+                          return <button type="button" title={`Select ${course.code}: ${courseTitle(course)}`} aria-pressed={isSelected} className={`course-node ${shouldUseThaiDisplay(course) ? "non-major-course" : "major-course"} ${isSelected ? "selected" : ""} ${relatedCodes.has(course.code) ? "related" : ""} ${isPrerequisite ? "prerequisite-highlight" : ""} ${isFollowing ? "following-highlight" : ""} ${isPassed ? "passed" : ""} ${missing.length ? "blocked" : ""}`} key={course.code} onClick={() => { setSelectedCode(course.code); setIsDetailOpen(false); }} draggable onDragStart={(event) => beginDrag(event, course.code)} onDragEnd={() => { setDraggedCode(""); setDropTerm(null); }} ref={(element) => { nodeRefs.current[course.code] = element; }}>
                             <span className="course-copy"><span className="course-code">{course.code}</span><strong className="course-name">{courseTitle(course)}</strong></span>
                             <span className="course-credit">{course.credits} นก.</span>
                             <span className="course-state">{isPrerequisite ? `วิชาบังคับก่อน${isPassed ? " · ผ่านแล้ว" : ""}` : isFollowing ? "วิชาที่เรียนต่อได้" : isPassed ? "✓ ผ่านแล้ว" : missing.length ? `! ต้องผ่าน ${missing.join(", ")} ก่อน` : "อยู่ในแผน"}</span>

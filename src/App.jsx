@@ -254,6 +254,7 @@ function CooperativePlan({ session }) {
   const [courses, setCourses] = useState([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [simulatedGrades, setSimulatedGrades] = useState({});
   const [excludedCodes, setExcludedCodes] = useState(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(`planc-coop-excluded-${session?.idcode || "guest"}`) || "[]"));
@@ -299,6 +300,14 @@ function CooperativePlan({ session }) {
     });
   }
 
+  function setSimulatedGrade(code, grade) {
+    setSimulatedGrades((current) => ({ ...current, [code]: grade }));
+  }
+
+  function clearSimulatedGrades() {
+    setSimulatedGrades({});
+  }
+
   // Grade records arrive newest-first. Keep only the latest attempt of a repeated course.
   const latestCourseByCode = new Map();
   courses.forEach((course) => {
@@ -308,11 +317,14 @@ function CooperativePlan({ session }) {
   const groupResults = COOPERATIVE_GROUPS.map((group) => {
     const entries = group.codes.map((code) => {
       const course = latestCourseByCode.get(code);
-      const grade = course ? String(courseValue(course, ["grade", "grade_result", "result"], "")).toUpperCase() : "";
+      const reportedGrade = course ? String(courseValue(course, ["grade", "grade_result", "result"], "")).toUpperCase() : "";
+      const canSimulate = !reportedGrade;
+      const simulatedGrade = canSimulate ? (simulatedGrades[code] || "") : "";
+      const grade = reportedGrade || simulatedGrade;
       const credits = Number(courseValue(course, ["credit", "credits", "credit_hour", "creditHours"], COOPERATIVE_COURSES[code]?.credits || 0)) || COOPERATIVE_COURSES[code]?.credits || 0;
-      return { code, course, grade, credits, excluded: excludedCodes.has(code) };
+      return { code, course, grade, reportedGrade, simulatedGrade, canSimulate, credits, excluded: excludedCodes.has(code) };
     });
-    const selectedRecords = entries.filter((entry) => !entry.excluded && entry.course);
+    const selectedRecords = entries.filter((entry) => !entry.excluded && (entry.course || entry.simulatedGrade));
     const passedCredits = selectedRecords.reduce((total, { grade, credits }) => {
       return total + (PASSING_GRADES.has(grade) ? credits : 0);
     }, 0);
@@ -324,6 +336,7 @@ function CooperativePlan({ session }) {
     return { ...group, entries, passedCredits, remainingCredits: Math.max(0, group.requiredCredits - passedCredits), gpa, creditPassed: passedCredits >= group.requiredCredits, gpaPassed: gradedCredits > 0 && gpa >= 2 };
   });
   const isEligible = groupResults.every((group) => group.creditPassed && group.gpaPassed);
+  const simulatedCount = Object.values(simulatedGrades).filter(Boolean).length;
 
   return (
     <section className="cooperative-page">
@@ -345,7 +358,8 @@ function CooperativePlan({ session }) {
         <div className="cooperative-information" role="note">
           <strong>วิชาเตรียมสหกิจศึกษา (03600390)</strong>
           <span>กำหนดไว้ในปี 3 ภาคปลาย และลงเรียนได้โดยยังไม่ต้องผ่านเกณฑ์ด้านล่าง เกณฑ์นี้ใช้ตรวจสิทธิ์ก่อนออกฝึกในปี 4 ภาคปลาย</span>
-          <small>เลือก “ไม่นับ” ในรายวิชาที่ไม่ต้องการนำมาใช้จำลองผลได้ ระบบจะคำนวณหน่วยกิตและเกรดเฉลี่ยของกลุ่มใหม่ทันที</small>
+          <small>วิชาที่ยังไม่มีเกรดสามารถเลือกเกรดจำลองได้ ระบบจะคำนวณหน่วยกิตและเกรดเฉลี่ยใหม่ทันที โดยไม่แก้ไขผลการเรียนจริง</small>
+          {simulatedCount > 0 && <div className="simulation-status"><span>กำลังจำลอง {simulatedCount} วิชา</span><button type="button" onClick={clearSimulatedGrades}>ล้างผลจำลอง</button></div>}
         </div>
 
         <div className="cooperative-grid group-grid">
@@ -366,10 +380,10 @@ function CooperativePlan({ session }) {
                   <thead><tr><th>รหัสวิชา</th><th>ชื่อรายวิชา</th><th>หน่วยกิต</th><th>ผลการเรียน</th><th>การคำนวณ</th></tr></thead>
                   <tbody>{group.entries.map((entry) => {
                     const passed = PASSING_GRADES.has(entry.grade);
-                    const gradeLabel = entry.course ? (entry.grade || "—") : "ยังไม่เรียน";
-                    return <tr className={entry.excluded ? "excluded-course" : ""} key={entry.code}>
+                    const gradeLabel = entry.reportedGrade || "ยังไม่มีเกรด";
+                    return <tr className={`${entry.excluded ? "excluded-course" : ""} ${entry.simulatedGrade ? "simulated-course" : ""}`} key={entry.code}>
                       <td>{entry.code}</td><td>{entry.course ? courseName(entry.course) : COOPERATIVE_COURSES[entry.code].name}</td><td>{entry.credits}</td>
-                      <td><span className={`course-grade ${passed ? "passed" : entry.course ? "not-passed" : "not-taken"}`}>{gradeLabel}</span></td>
+                      <td>{entry.canSimulate ? <label className="simulation-grade-control"><span>จำลองผล</span><select value={entry.simulatedGrade} onChange={(event) => setSimulatedGrade(entry.code, event.target.value)}><option value="">เลือกเกรด</option>{["A", "B+", "B", "C+", "C", "D+", "D"].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select>{entry.simulatedGrade && <small>กำลังใช้ผลจำลอง</small>}</label> : <span className={`course-grade ${passed ? "passed" : "not-passed"}`}>{gradeLabel}</span>}</td>
                       <td><button type="button" className={`course-toggle ${entry.excluded ? "excluded" : "included"}`} aria-pressed={!entry.excluded} onClick={() => toggleCourse(entry.code)}>{entry.excluded ? "ไม่นับ" : "ใช้คำนวณ"}</button></td>
                     </tr>;
                   })}</tbody>

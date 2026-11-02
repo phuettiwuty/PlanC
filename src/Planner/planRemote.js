@@ -25,6 +25,10 @@ export function fetchRemoteStudyPlans(session) {
   return request(session, "/api/study-plans", { method: "GET" });
 }
 
+export function fetchRemoteStudyPlanHistory(session, planId) {
+  return request(session, `/api/study-plans/${encodeURIComponent(planId)}/history`, { method: "GET" });
+}
+
 export function syncRemoteStudyPlans(session, state) {
   return request(session, "/api/study-plans/sync", {
     method: "POST",
