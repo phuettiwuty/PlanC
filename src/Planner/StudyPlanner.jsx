@@ -328,6 +328,8 @@ export default function StudyPlanner({ session, onLogout }) {
   const [quickTargetTerm, setQuickTargetTerm] = useState("");
   const [plannerPopup, setPlannerPopup] = useState(null);
   const [plannerConfirmation, setPlannerConfirmation] = useState(null);
+  const [isCreatePlanOpen, setIsCreatePlanOpen] = useState(false);
+  const [newPlanName, setNewPlanName] = useState("");
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [planHistory, setPlanHistory] = useState([]);
   const [historyStatus, setHistoryStatus] = useState("idle");
@@ -671,13 +673,30 @@ export default function StudyPlanner({ session, onLogout }) {
     setPlanNotice("");
   }
 
+  function openCreatePlan() {
+    setNewPlanName(`แผน ${plans.length + 1}`);
+    setIsCreatePlanOpen(true);
+  }
+
   function createPlan() {
-    const name = window.prompt("ชื่อแผนการเรียนใหม่", `แผน ${plans.length + 1}`)?.trim();
-    if (!name) return;
+    const name = newPlanName.trim().slice(0, 60);
+    if (!name) {
+      setPlannerPopup({ tone: "warning", title: "กรุณาตั้งชื่อแผน", message: "ชื่อแผนต้องมีอย่างน้อย 1 ตัวอักษร" });
+      return;
+    }
+    if (plans.length >= 20) {
+      setPlannerPopup({ tone: "warning", title: "สร้างแผนเพิ่มไม่ได้", message: "บัญชีหนึ่งเก็บแผนการเรียนได้สูงสุด 20 แผน" });
+      return;
+    }
+    if (plans.some((item) => item.name.trim().toLowerCase() === name.toLowerCase())) {
+      setPlannerPopup({ tone: "warning", title: "ชื่อนี้ถูกใช้งานแล้ว", message: "กรุณาตั้งชื่อแผนใหม่ที่แตกต่างจากแผนเดิม" });
+      return;
+    }
     const nextPlan = makeStudyPlan(name, defaultPlan());
     setPlanState((current) => ({ plans: [...current.plans, nextPlan], activePlanId: nextPlan.id }));
     setUndoPlan(null);
-    setPlanNotice(`สร้าง “${nextPlan.name}” แล้ว`);
+    setIsCreatePlanOpen(false);
+    setPlanNotice("สร้างแผนใหม่แล้ว");
   }
 
   function duplicatePlan() {
@@ -969,6 +988,19 @@ export default function StudyPlanner({ session, onLogout }) {
           </section>
         </div>
       )}
+      {isCreatePlanOpen && (
+        <div className="planner-popup-layer" role="presentation" onMouseDown={() => setIsCreatePlanOpen(false)}>
+          <section className="planner-create-popup" role="dialog" aria-modal="true" aria-labelledby="create-plan-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className="planner-popup-close" aria-label="ปิด" onClick={() => setIsCreatePlanOpen(false)}>×</button>
+            <p>NEW STUDY PLAN</p>
+            <h2 id="create-plan-title">สร้างแผนการเรียนใหม่</h2>
+            <span>เริ่มจากแผนตามหลักสูตร แล้วปรับให้เหมาะกับเป้าหมายของคุณ</span>
+            <label htmlFor="new-plan-name">ชื่อแผน</label>
+            <input id="new-plan-name" value={newPlanName} maxLength={60} autoFocus onChange={(event) => setNewPlanName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") createPlan(); }} />
+            <div className="planner-create-actions"><button type="button" onClick={() => setIsCreatePlanOpen(false)}>ยกเลิก</button><button type="button" onClick={createPlan}>สร้างแผน</button></div>
+          </section>
+        </div>
+      )}
       {isHistoryOpen && (
         <div className="plan-history-layer" role="presentation" onMouseDown={() => setIsHistoryOpen(false)}>
           <section className="plan-history-modal" role="dialog" aria-modal="true" aria-labelledby="plan-history-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -1021,10 +1053,12 @@ export default function StudyPlanner({ session, onLogout }) {
 
       <div className="plan-manager" aria-label="จัดการแผนการเรียน">
         <div className="plan-manager-actions">
+          <button type="button" className="plan-create" onClick={openCreatePlan}>+ สร้างแผนใหม่</button>
           <button type="button" className="plan-save-manual" onClick={savePlanManually}>บันทึกแผน</button>
           <button type="button" className="plan-auto-arrange" onClick={runAutoArrange}>จัดแผนอัตโนมัติ</button>
           <button type="button" onClick={openPlanHistory}>ประวัติแผน</button>
           <button type="button" onClick={exportPlan}>บันทึกเป็นรูปภาพ</button>
+          <button type="button" className="plan-delete" onClick={deletePlan}>ลบแผน</button>
         </div>
       </div>
 
