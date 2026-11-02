@@ -1,5 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
-import { kuGetGrades, kuGetProfile, kuLogin } from "../../ku-login.mjs";
+let kuApiPromise;
+
+function getKuApi() {
+  // Loading this lazily prevents a missing or malformed KU setting from
+  // taking the complete API function offline (Netlify would otherwise reply 502).
+  kuApiPromise ??= import("../../ku-login.mjs");
+  return kuApiPromise;
+}
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -74,6 +81,7 @@ async function verifyKuSession(request, idcode) {
   const cacheKey = `${idcode}:${token}`;
   const cached = verifiedSessions.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.profile;
+  const { kuGetGrades, kuGetProfile } = await getKuApi();
   let profile = await kuGetProfile(token, idcode);
   if (!profile) {
     await kuGetGrades(token, idcode);
@@ -142,6 +150,7 @@ export default async function handler(request) {
     if (pathname === "/api/login" && request.method === "POST") {
       const { username, password } = await request.json().catch(() => ({}));
       if (!username || !password) return json({ error: "กรุณากรอกรหัสนิสิตและรหัสผ่าน" }, 400);
+      const { kuLogin } = await getKuApi();
       return json(await kuLogin(username, password));
     }
 
@@ -149,6 +158,7 @@ export default async function handler(request) {
       const idcode = url.searchParams.get("idcode");
       if (!idcode || !tokenOf(request)) return json({ error: "Missing idcode query param or x-access-token header" }, 400);
       if (isDemoRequest(request, idcode)) return json(demoGrades);
+      const { kuGetGrades } = await getKuApi();
       return json(await kuGetGrades(tokenOf(request), idcode));
     }
 
@@ -156,6 +166,7 @@ export default async function handler(request) {
       const idcode = url.searchParams.get("idcode");
       if (!idcode || !tokenOf(request)) return json({ error: "Missing idcode query param or x-access-token header" }, 400);
       if (isDemoRequest(request, idcode)) return json({ stdCode: DEMO_STUDENT_ID, stdNameTh: "นิสิตตัวอย่าง ปี 2", facultyNameTh: "คณะวิศวกรรมศาสตร์", majorNameTh: "วิศวกรรมคอมพิวเตอร์", year: 2 });
+      const { kuGetProfile } = await getKuApi();
       return json((await kuGetProfile(tokenOf(request), idcode)) || {});
     }
 
